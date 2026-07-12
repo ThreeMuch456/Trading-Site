@@ -57,6 +57,38 @@ Same pattern as the sibling projects — this is its own service:
 
 `GET /healthz` returns `{"status": "ok"}` for health checks.
 
+## Shared API keys across sections (Massive, etc.)
+
+Each tool is deployed as its own service and reads its own environment, so an API
+key like `MASSIVE_API_KEY` (Massive.com options data) would otherwise be pasted into
+every service that needs it. Three sections call Massive:
+
+| Section | Service | Needs `MASSIVE_API_KEY` |
+|---------|---------|--------------------------|
+| Morning Brief (`Trading-Agent`) | its own | Yes |
+| SPY Power Hour (`SPY-Power-Hour`) | its own | Yes |
+| Thin-Zone Screener (`Structure-Identifier`) | its own | Yes |
+| Stock Deep Dive (`Stock-Analysis`) | its own | No (`ANTHROPIC_API_KEY` only) |
+| Options Flow Scanner (`Options-Flow-Scanner`) | its own | No (free yfinance) |
+| **This hub (`Trading-Site`)** | this service | **No key — links only** |
+
+To administer **one key for the whole site** instead of one per service, use
+**Railway project-level shared variables**:
+
+1. In the Railway **project** (not a single service) → **Variables** → add a shared
+   variable, e.g. `MASSIVE_API_KEY = <your key>`.
+2. In each service that needs it, reference the shared variable
+   (`${{shared.MASSIVE_API_KEY}}`), or enable "Add to all services".
+3. Rotating the key is then a single edit at the project level; every section picks
+   up the new value on redeploy.
+
+The same approach works for any cross-tool key (e.g. `ANTHROPIC_API_KEY`). This keeps
+the existing apps untouched — they still just read `os.environ["MASSIVE_API_KEY"]`;
+Railway simply supplies the one shared value to each.
+
+> The hub itself needs none of these keys — it only links out. It is listed above
+> for completeness.
+
 ## Roadmap / next steps
 
 - **Options Flow Scanner** — finish the underlying project, then flip its card from
