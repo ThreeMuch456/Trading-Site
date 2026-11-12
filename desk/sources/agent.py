@@ -68,6 +68,7 @@ def collect(cfg: dict, timeout: float) -> dict:
         "gameplan_summary_html": _summary_html(gp),
         "eod": _eod_from_perf(perf, biases) if perf else None,
         "track_record": _track_record(perf) if perf else None,
+        "calibration": _calibration(perf) if perf else None,
     }
 
 
@@ -91,6 +92,12 @@ def merge(s: dict, c: dict) -> None:
     if c.get("track_record"):
         # Seed the synthesized Track Record; other sources append their own items.
         s["eod"]["track_record"] = c["track_record"]
+    cal = c.get("calibration")
+    if cal:
+        for t in s.get("tickers", []):
+            d = cal.get(t["sym"])
+            if d:
+                t["calib"] = d
     # Keep the Overview gameplan snapshot card's risk badge in sync too.
     for card in s.get("overview_cards", []):
         if card.get("href") == "eod":
@@ -202,6 +209,17 @@ def _eod_summary(c: int, t: int) -> str:
     verdict = "good" if c >= t - c else "mixed"
     return (f"<b>Plan graded: {verdict}.</b> {c}/{t} morning biases verified open→close. "
             "The scored outcome feeds the learning loop that tempers tomorrow's conviction.")
+
+
+def _calibration(perf: dict) -> dict:
+    """Per-ticker bias accuracy, for the inline Gameplan 'track record' chip."""
+    by_t = (perf.get("stats") or {}).get("by_ticker") or {}
+    out = {}
+    for sym, d in by_t.items():
+        acc, n = (d or {}).get("accuracy"), (d or {}).get("total")
+        if isinstance(acc, (int, float)) and n:
+            out[sym.upper()] = {"acc": round(acc * 100), "n": n}
+    return out
 
 
 def _track_record(perf: dict) -> dict:

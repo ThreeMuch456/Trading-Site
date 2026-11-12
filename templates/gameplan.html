@@ -34,6 +34,7 @@
         <div class="case bear"><div class="cl">Bear</div>{{ t.bear|safe }}</div>
       </div>
       <div class="rflags">{% for f in t.risk_flags %}<span class="rflag">{{ f }}</span>{% endfor %}</div>
+      {% if t.calib %}<div class="calib">◆ Track record · <b>{{ t.calib.acc }}%</b> {{ t.sym }} bias accuracy over {{ t.calib.n }} sessions</div>{% endif %}
     </div>
     <div class="ladder">
       {% for lv in t.levels %}

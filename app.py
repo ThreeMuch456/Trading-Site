@@ -12,7 +12,7 @@ Run:   python app.py        # http://localhost:8000  (override with PORT)
 import os
 from pathlib import Path
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request, g
 
 try:
     from dotenv import load_dotenv
@@ -40,6 +40,31 @@ NAV_ITEMS = [
     ("structure", "Structure"),
     ("eod", "EOD"),
 ]
+
+
+@app.before_request
+def _gate():
+    """Optional shared-secret gate. Unset APP_TOKEN = fully open (right for local).
+    Set it on a public deploy and every page requires the token as ?token=…, an
+    X-App-Token header, or the cookie set on first query-param auth (so links stay
+    clean afterwards). /healthz and /static stay open for health checks + assets."""
+    token = os.environ.get("APP_TOKEN")
+    if not token or request.endpoint in ("healthz", "static"):
+        return None
+    supplied = (request.args.get("token")
+                or request.headers.get("X-App-Token", "")
+                or request.cookies.get("desk_token", ""))
+    if supplied != token:
+        return ("unauthorized", 401)
+    g.set_desk_cookie = request.args.get("token") == token
+    return None
+
+
+@app.after_request
+def _persist_token(resp):
+    if getattr(g, "set_desk_cookie", False):
+        resp.set_cookie("desk_token", os.environ.get("APP_TOKEN", ""), httponly=True, samesite="Lax")
+    return resp
 
 
 @app.context_processor

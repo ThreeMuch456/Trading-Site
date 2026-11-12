@@ -88,6 +88,7 @@ def snapshot() -> dict:
                 "bull": "Break &amp; hold 684 on volume → 686",
                 "bear": "Lose 677.5 vol trigger → 675 put wall",
                 "risk_flags": ["0DTE short gamma", "Fri OPEX pin"],
+                "calib": {"acc": 61, "n": 82},
                 "levels": [
                     {"name": "Call Wall", "kind": "callwall", "price": "684.00", "dist": "+0.75%", "val_class": "up"},
                     {"name": "EM High", "kind": "em", "price": "682.70", "dist": "+0.56%", "val_class": ""},
@@ -106,6 +107,7 @@ def snapshot() -> dict:
                 "bull": "Hold 599.5 flip → 605, then thin air to 609",
                 "bear": "Lose 599.5 → stand aside, long invalid",
                 "risk_flags": ["extended vs 50d"],
+                "calib": {"acc": 59, "n": 82},
                 "levels": [
                     {"name": "Call Wall", "kind": "callwall", "price": "609.00", "dist": "+1.26%", "val_class": "up"},
                     {"name": "EM High", "kind": "em", "price": "605.10", "dist": "+0.62%", "val_class": ""},
@@ -123,6 +125,7 @@ def snapshot() -> dict:
                 "bull": "Reclaim 245.5 flip → 247 call wall",
                 "bear": "Lose 244 put wall → 242.3 EM low",
                 "risk_flags": ["below 50d", "low observed% 48"],
+                "calib": {"acc": 54, "n": 81},
                 "levels": [
                     {"name": "Call Wall", "kind": "callwall", "price": "247.00", "dist": "+0.98%", "val_class": "up"},
                     {"name": "Zero Gamma", "kind": "zero", "price": "245.50", "dist": "+0.37%", "val_class": "amber"},

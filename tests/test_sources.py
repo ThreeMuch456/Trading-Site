@@ -47,6 +47,7 @@ def test_agent_maps_brief_and_risk():
     assert grades["SPY"]["correct"] == "Yes" and grades["IWM"]["correct"] == "No"
     assert any(t["label"] == "Brier" and t["value"] == "0.21" for t in c["eod"]["performance"])
     assert c["track_record"]["lines"] and "Gameplan bias" in c["track_record"]["lines"][0]["text"]
+    assert c["calibration"]["SPY"]["acc"] == 61 and c["calibration"]["SPY"]["n"] == 82
 
     s = sample_data.snapshot()
     agent.merge(s, c)
@@ -54,7 +55,23 @@ def test_agent_maps_brief_and_risk():
     assert any(t["sym"] == "SPY" and t["bias"] == spy["bias"] for t in s["tickers"])
     assert s["eod"]["grades"][0]["correct"] in ("Yes", "No")
     assert s["eod"]["track_record"]["lines"]
-    print("  agent: brief+risk, EOD grades+Brier, track record, merge OK")
+    assert next(t for t in s["tickers"] if t["sym"] == "SPY")["calib"]["acc"] == 61
+    print("  agent: brief+risk, EOD grades+Brier, track record, calibration, merge OK")
+
+
+def test_app_token_gate():
+    import os
+    import app as appmod
+    with appmod.app.test_client() as cl:
+        os.environ["APP_TOKEN"] = "secret"
+        try:
+            assert cl.get("/").status_code == 401                # no token -> blocked
+            assert cl.get("/healthz").status_code == 200         # health stays open
+            assert cl.get("/?token=secret").status_code == 200   # query-param auth
+            assert cl.get("/gameplan").status_code == 200        # cookie persists
+        finally:
+            os.environ.pop("APP_TOKEN", None)
+    print("  gate: APP_TOKEN enforced, healthz open, cookie persists")
 
 
 def test_store_logs_and_grades(tmp=None):
@@ -207,7 +224,7 @@ def test_sample_mode_when_unconfigured():
 if __name__ == "__main__":
     for fn in (test_agent_maps_brief_and_risk, test_zerodte_maps_levels_and_touches,
                test_flow_maps_waves_eod_and_skew, test_structure_maps_recs_rotation_quant,
-               test_store_logs_and_grades,
+               test_store_logs_and_grades, test_app_token_gate,
                test_fetch_fails_soft, test_sample_mode_when_unconfigured):
         fn()
     print("ALL PASS")

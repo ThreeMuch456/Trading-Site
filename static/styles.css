@@ -370,6 +370,11 @@ table.data .tk { font-weight:700; letter-spacing:0.04em; }
 .perf .pv { font-size:1.3em; font-weight:700; font-variant-numeric:tabular-nums; margin-top:3px; }
 .perf .ps { font-size:0.66em; color:var(--muted); margin-top:2px; }
 
+/* Gameplan per-ticker calibration chip (recursive learning) */
+.calib { margin-top:9px; padding:6px 8px; border-radius:4px; font-size:0.68em; color:var(--muted);
+  background:rgba(167,139,250,0.06); border-left:2px solid var(--purple); letter-spacing:0.02em; }
+.calib b { color:var(--purple); }
+
 /* EOD synthesized Track Record (recursive learning) */
 .track { margin-top:14px; padding:12px 14px; border:1px solid var(--border); border-radius:6px;
   background:linear-gradient(90deg, rgba(167,139,250,0.06), var(--surface2)); }
