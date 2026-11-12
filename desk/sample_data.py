@@ -182,9 +182,9 @@ def snapshot() -> dict:
         "flow": {
             "session_label": "0DTE / 1DTE · session of Thu Nov 12",
             "waves": [
-                {"sym": "QQQ", "side": "call", "call_n": "8,420", "put_n": "2,110", "skew_pct": 80,
+                {"sym": "QQQ", "side": "call", "call_n": "8,420", "put_n": "2,110", "skew_pct": 80, "call_pct": 80,
                  "lead": "led by $604C exp today (+3,900)", "meta": "$1.9M fresh · 14 contracts · last 15m"},
-                {"sym": "SPY", "side": "call", "call_n": "11,260", "put_n": "6,540", "skew_pct": 63,
+                {"sym": "SPY", "side": "call", "call_n": "11,260", "put_n": "6,540", "skew_pct": 63, "call_pct": 63,
                  "lead": "led by $682C exp today (+5,100)", "meta": "$2.7M fresh · 21 contracts · last 15m"},
             ],
             "session_skew": [

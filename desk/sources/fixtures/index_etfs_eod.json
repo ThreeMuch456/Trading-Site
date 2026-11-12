@@ -1,0 +1,20 @@
+{
+  "session_date": "2026-11-12",
+  "window_start": "2026-11-12T15:30:00-05:00",
+  "min_volume": 1000,
+  "min_skew": 0.15,
+  "tickers": [
+    {"ticker": "SPY", "call_volume": 42000, "put_volume": 30400, "total": 72400,
+     "call_share": 0.58, "skew": 0.16, "direction": "call", "is_wave": true,
+     "contracts": 30, "premium": 4100000, "expiries": ["2026-11-13"],
+     "top_contract": {"option_ticker": "O:SPY261113C00684000", "strike": 684, "expiry": "2026-11-13", "option_type": "call", "volume_delta": 2000}},
+    {"ticker": "QQQ", "call_volume": 33000, "put_volume": 17000, "total": 50000,
+     "call_share": 0.66, "skew": 0.32, "direction": "call", "is_wave": true,
+     "contracts": 22, "premium": 3300000, "expiries": ["2026-11-13"],
+     "top_contract": {"option_ticker": "O:QQQ261113C00609000", "strike": 609, "expiry": "2026-11-13", "option_type": "call", "volume_delta": 1500}},
+    {"ticker": "IWM", "call_volume": 7800, "put_volume": 12200, "total": 20000,
+     "call_share": 0.39, "skew": 0.22, "direction": "put", "is_wave": false,
+     "contracts": 9, "premium": 1200000, "expiries": ["2026-11-13"],
+     "top_contract": {"option_ticker": "O:IWM261113P00243000", "strike": 243, "expiry": "2026-11-13", "option_type": "put", "volume_delta": 900}}
+  ]
+}

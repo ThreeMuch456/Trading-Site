@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 FIX = ROOT / "desk" / "sources" / "fixtures"
 
 from desk import fetch, sample_data            # noqa: E402
-from desk.sources import agent, zerodte        # noqa: E402
+from desk.sources import agent, zerodte, flow   # noqa: E402
 
 
 def _load(name):
@@ -70,11 +70,50 @@ def test_zerodte_maps_levels_and_touches():
     print("  zerodte: SPY levels/regime/observed/touches mapped, ladder ordered, merge OK")
 
 
+def test_flow_maps_waves_eod_and_skew():
+    fixtures = {
+        "/api/index-etfs/waves": _load("index_etfs_waves.json"),
+        "/api/index-etfs/eod": _load("index_etfs_eod.json"),
+        "/api/index-etfs": _load("index_etfs.json"),
+    }
+
+    def dispatch(url, *a, **k):
+        for path in ("/api/index-etfs/waves", "/api/index-etfs/eod", "/api/index-etfs"):
+            if url.endswith(path):
+                return fixtures[path]
+        raise AssertionError(f"unexpected url {url}")
+    flow.http_get_json = dispatch
+
+    c = flow.collect(CFG, 2.0)
+    # Only the two is_surge tickers become wave banners (IWM is not a surge).
+    assert len(c["flow"]["waves"]) == 2
+    q = c["flow"]["waves"][0]
+    assert q["sym"] == "QQQ" and q["call_pct"] == 80 and q["side"] == "call"
+    assert "led by $604C" in q["lead"] and "$1.9M fresh" in q["meta"]
+
+    skews = {d["sym"]: d for d in c["flow"]["session_skew"]}
+    assert skews["SPY"]["call_pct"] == 57 and skews["QQQ"]["call_pct"] == 68
+    assert skews["IWM"]["label"].endswith("puts")
+
+    eod = {d["sym"]: d for d in c["flow"]["eod"]}
+    assert eod["SPY"]["lean"] == "call" and eod["IWM"]["lean"] == "put"
+    assert "$4.1M" in eod["SPY"]["detail"]
+
+    s = sample_data.snapshot()
+    flow.merge(s, c)
+    assert s["flow"]["waves"][0]["sym"] == "QQQ"
+    assert len(s["intraday"]["skew"]) == 3
+    fcard = next(cd for cd in s["overview_cards"] if cd["href"] == "flow")
+    assert any(st.get("l") == "Active waves" and st["v"] == "2" for st in fcard["stats"])
+    print("  flow: waves/session-skew/eod mapped, intraday skew + overview card merged")
+
+
 def test_fetch_fails_soft(monkeypatch=None):
     from desk import config
     # Enable just the agent source, then make its fetch blow up.
     config.SOURCES["agent"]["url"] = "http://unreachable"
     config.SOURCES["zerodte"]["url"] = ""
+    config.SOURCES["flow"]["url"] = ""
     def boom(*a, **k):
         raise OSError("connection refused")
     agent.http_get_json = boom
@@ -92,6 +131,7 @@ def test_sample_mode_when_unconfigured():
     from desk import config
     config.SOURCES["agent"]["url"] = ""
     config.SOURCES["zerodte"]["url"] = ""
+    config.SOURCES["flow"]["url"] = ""
     s = fetch.get_snapshot(force=True)
     assert s["mock"] is True and s["live"] is False and s["degraded"] == {}
     print("  fetch: no URLs -> sample mode")
@@ -99,6 +139,7 @@ def test_sample_mode_when_unconfigured():
 
 if __name__ == "__main__":
     for fn in (test_agent_maps_brief_and_risk, test_zerodte_maps_levels_and_touches,
+               test_flow_maps_waves_eod_and_skew,
                test_fetch_fails_soft, test_sample_mode_when_unconfigured):
         fn()
     print("ALL PASS")

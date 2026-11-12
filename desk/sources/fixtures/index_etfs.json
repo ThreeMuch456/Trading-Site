@@ -1,0 +1,8 @@
+[
+  {"ticker": "SPY", "option_type": "call", "volume": 5700, "side": "buy", "strike": 682, "estimated_premium": 900000, "dte": 0, "detected_at": "2026-11-12T14:20:00-05:00"},
+  {"ticker": "SPY", "option_type": "put",  "volume": 4300, "side": "buy", "strike": 676, "estimated_premium": 500000, "dte": 0, "detected_at": "2026-11-12T13:55:00-05:00"},
+  {"ticker": "QQQ", "option_type": "call", "volume": 6800, "side": "buy", "strike": 604, "estimated_premium": 1200000, "dte": 0, "detected_at": "2026-11-12T14:25:00-05:00"},
+  {"ticker": "QQQ", "option_type": "put",  "volume": 3200, "side": "buy", "strike": 598, "estimated_premium": 300000, "dte": 0, "detected_at": "2026-11-12T12:40:00-05:00"},
+  {"ticker": "IWM", "option_type": "call", "volume": 4600, "side": "buy", "strike": 247, "estimated_premium": 250000, "dte": 1, "detected_at": "2026-11-12T11:10:00-05:00"},
+  {"ticker": "IWM", "option_type": "put",  "volume": 5400, "side": "buy", "strike": 244, "estimated_premium": 400000, "dte": 0, "detected_at": "2026-11-12T13:30:00-05:00"}
+]

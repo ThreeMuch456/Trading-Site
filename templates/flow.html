@@ -22,7 +22,7 @@
     <div class="surge {{ w.side }}">
       <span class="st">⚡ {{ w.sym }} {{ w.side|capitalize }} Wave</span>
       <span class="sd">{{ w.call_n }} calls vs {{ w.put_n }} puts — {{ w.skew_pct }}% {{ w.side }}s</span>
-      <span class="skew" style="max-width:180px;"><i class="c" style="width:{{ w.skew_pct }}%"></i><i class="p" style="width:{{ 100 - w.skew_pct }}%"></i></span>
+      <span class="skew" style="max-width:180px;"><i class="c" style="width:{{ w.call_pct }}%"></i><i class="p" style="width:{{ 100 - w.call_pct }}%"></i></span>
       <span class="sd">{{ w.lead }}</span>
       <span class="sm">{{ w.meta }}</span>
     </div>

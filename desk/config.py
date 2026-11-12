@@ -19,6 +19,8 @@ SOURCES = {
                 "token": os.environ.get("AGENT_TOKEN", ""), "header": "Authorization"},
     "zerodte": {"url": os.environ.get("ZERO_DTE_URL", "").rstrip("/"),
                 "token": os.environ.get("ZERO_DTE_TOKEN", ""), "header": "X-App-Token"},
+    "flow":    {"url": os.environ.get("FLOW_URL", "").rstrip("/"),
+                "token": os.environ.get("FLOW_TOKEN", ""), "header": "Authorization"},
 }
 
 

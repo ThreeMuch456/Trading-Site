@@ -13,9 +13,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import config
 from . import sample_data
-from .sources import agent, zerodte
+from .sources import agent, zerodte, flow
 
-_SOURCES = {"agent": agent, "zerodte": zerodte}
+_SOURCES = {"agent": agent, "zerodte": zerodte, "flow": flow}
 _cache = {"snapshot": None, "ts": 0.0}
 
 
