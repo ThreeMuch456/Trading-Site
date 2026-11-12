@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 FIX = ROOT / "desk" / "sources" / "fixtures"
 
 from desk import fetch, sample_data            # noqa: E402
-from desk.sources import agent, zerodte, flow   # noqa: E402
+from desk.sources import agent, zerodte, flow, structure   # noqa: E402
 
 
 def _load(name):
@@ -108,6 +108,47 @@ def test_flow_maps_waves_eod_and_skew():
     print("  flow: waves/session-skew/eod mapped, intraday skew + overview card merged")
 
 
+def test_structure_maps_recs_rotation_quant():
+    import urllib.parse as up
+    from desk import config
+    config.SOURCES["flow"]["url"] = "http://flow"
+    config.SOURCES["stock"]["url"] = "http://stock"
+    recs, rot = _load("recs.json"), _load("rotation.json")
+    quant = {"NVDA": 72, "AMD": 68, "META": 54, "XOM": 63, "TSLA": 41}
+
+    def dispatch(url, *a, **k):
+        if url.endswith("/api/recs.json"):
+            return recs
+        if url.endswith("/api/rotation"):
+            return rot
+        if "/api/analyze" in url:
+            t = up.parse_qs(up.urlparse(url).query).get("ticker", ["?"])[0]
+            return {"scorecard": {"overall": quant.get(t)}}
+        raise AssertionError(f"unexpected url {url}")
+    structure.http_get_json = dispatch
+
+    c = structure.collect(CFG, 2.0)
+    rows = {r["sym"]: r for r in c["recs"]}
+    nv = rows["NVDA"]
+    assert nv["dir"] == "▲ Up" and nv["zone"] == "Thin resistance" and nv["dist"] == "+0.9%"
+    assert nv["comp"]["z"] is True and nv["comp"]["g"] == "amp" and nv["comp"]["r"] == "amp"
+    assert nv["rotation"] == "Leading" and nv["rotation_class"] == "q-leading"
+    assert nv["quant"] == "72" and nv["quant_class"] == "up"
+    assert nv["live"] == "Firing" and nv["score"] == "0.88" and nv["score_color"] == "var(--green-hot)"
+    assert rows["META"]["rotation"] == "Weakening" and rows["META"]["dir"] == "▼ Down" and rows["META"]["zone"] == "Thin support"
+    assert rows["TSLA"]["rotation"] == "Lagging" and rows["TSLA"]["quant_class"] == "down"
+    assert c["card"]["passing"] == 5 and c["card"]["firing"] == 2 and c["card"]["top"] == "0.88"
+
+    s = sample_data.snapshot()
+    structure.merge(s, c)
+    assert s["structure"]["recs"][0]["sym"] == "NVDA"
+    scard = next(cd for cd in s["overview_cards"] if cd["href"] == "structure")
+    assert any(st.get("l") == "Passing gate" and st["v"] == "5" for st in scard["stats"])
+    config.SOURCES["flow"]["url"] = ""
+    config.SOURCES["stock"]["url"] = ""
+    print("  structure: recs+rotation+quant mapped, components/score/live correct, merge OK")
+
+
 def test_fetch_fails_soft(monkeypatch=None):
     from desk import config
     # Enable just the agent source, then make its fetch blow up.
@@ -129,9 +170,8 @@ def test_fetch_fails_soft(monkeypatch=None):
 
 def test_sample_mode_when_unconfigured():
     from desk import config
-    config.SOURCES["agent"]["url"] = ""
-    config.SOURCES["zerodte"]["url"] = ""
-    config.SOURCES["flow"]["url"] = ""
+    for name in ("agent", "zerodte", "flow", "structure", "stock"):
+        config.SOURCES[name]["url"] = ""
     s = fetch.get_snapshot(force=True)
     assert s["mock"] is True and s["live"] is False and s["degraded"] == {}
     print("  fetch: no URLs -> sample mode")
@@ -139,7 +179,7 @@ def test_sample_mode_when_unconfigured():
 
 if __name__ == "__main__":
     for fn in (test_agent_maps_brief_and_risk, test_zerodte_maps_levels_and_touches,
-               test_flow_maps_waves_eod_and_skew,
+               test_flow_maps_waves_eod_and_skew, test_structure_maps_recs_rotation_quant,
                test_fetch_fails_soft, test_sample_mode_when_unconfigured):
         fn()
     print("ALL PASS")

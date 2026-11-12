@@ -1,0 +1,22 @@
+{
+  "as_of": "2026-11-12 09:15",
+  "repriced_at": "2026-11-12 09:15",
+  "count": 5,
+  "recs": [
+    {"ticker": "NVDA", "price": 187.40, "direction": "up", "zone": "resistance", "distance_pct": 0.9,
+     "combined_score": 0.88, "components": {"zone": true, "flag": true, "gex": true, "rvol": true},
+     "rvol": 1.8, "gex_amp": 0.6, "rvol_amp": 0.5, "live_activated": true, "next_earnings": null},
+    {"ticker": "AMD", "price": 168.22, "direction": "up", "zone": "resistance", "distance_pct": 1.4,
+     "combined_score": 0.79, "components": {"zone": true, "flag": true, "gex": true, "rvol": false},
+     "rvol": 1.5, "gex_amp": 0.5, "rvol_amp": 0.1, "live_activated": true, "next_earnings": null},
+    {"ticker": "META", "price": 642.10, "direction": "down", "zone": "support", "distance_pct": 1.1,
+     "combined_score": 0.71, "components": {"zone": true, "flag": true, "gex": false, "rvol": true},
+     "rvol": 1.6, "gex_amp": 0.1, "rvol_amp": 0.4, "live_activated": false, "next_earnings": null},
+    {"ticker": "XOM", "price": 118.95, "direction": "up", "zone": "resistance", "distance_pct": 0.7,
+     "combined_score": 0.66, "components": {"zone": true, "flag": false, "gex": true, "rvol": true},
+     "rvol": 1.4, "gex_amp": 0.4, "rvol_amp": 0.3, "live_activated": false, "next_earnings": null},
+    {"ticker": "TSLA", "price": 398.60, "direction": "down", "zone": "support", "distance_pct": 1.8,
+     "combined_score": 0.58, "components": {"zone": true, "flag": true, "gex": false, "rvol": false},
+     "rvol": 1.1, "gex_amp": 0.1, "rvol_amp": 0.1, "live_activated": false, "next_earnings": null}
+  ]
+}

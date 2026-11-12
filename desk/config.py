@@ -21,6 +21,11 @@ SOURCES = {
                 "token": os.environ.get("ZERO_DTE_TOKEN", ""), "header": "X-App-Token"},
     "flow":    {"url": os.environ.get("FLOW_URL", "").rstrip("/"),
                 "token": os.environ.get("FLOW_TOKEN", ""), "header": "Authorization"},
+    "structure": {"url": os.environ.get("STRUCTURE_URL", "").rstrip("/"),
+                  "token": os.environ.get("STRUCTURE_TOKEN", ""), "header": "Authorization"},
+    # Read only by the structure adapter for the quant column — not a page source.
+    "stock":   {"url": os.environ.get("STOCK_URL", "").rstrip("/"),
+                "token": os.environ.get("STOCK_TOKEN", ""), "header": "Authorization"},
 }
 
 

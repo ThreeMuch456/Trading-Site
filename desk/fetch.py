@@ -13,9 +13,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import config
 from . import sample_data
-from .sources import agent, zerodte, flow
+from .sources import agent, zerodte, flow, structure
 
-_SOURCES = {"agent": agent, "zerodte": zerodte, "flow": flow}
+# Page sources fetched in parallel. "stock" is not here — it's read only by the
+# structure adapter (the quant column), never on its own.
+_SOURCES = {"agent": agent, "zerodte": zerodte, "flow": flow, "structure": structure}
 _cache = {"snapshot": None, "ts": 0.0}
 
 

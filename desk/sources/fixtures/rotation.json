@@ -1,0 +1,15 @@
+{
+  "scope": "all",
+  "as_of": "2026-11-12T14:30:00-05:00",
+  "sectors": [
+    {"sector": "Semiconductors", "etf": "SMH", "quadrant": "leading",
+     "tickers": [{"ticker": "NVDA", "premium": 5200000, "call_share": 0.72, "lean": "call"},
+                 {"ticker": "AMD", "premium": 3100000, "call_share": 0.68, "lean": "call"}]},
+    {"sector": "Comm. Services", "etf": "XLC", "quadrant": "weakening",
+     "tickers": [{"ticker": "META", "premium": 2800000, "call_share": 0.41, "lean": "put"}]},
+    {"sector": "Energy", "etf": "XLE", "quadrant": "improving",
+     "tickers": [{"ticker": "XOM", "premium": 1200000, "call_share": 0.63, "lean": "call"}]},
+    {"sector": "Cons. Discretionary", "etf": "XLY", "quadrant": "lagging",
+     "tickers": [{"ticker": "TSLA", "premium": 900000, "call_share": 0.38, "lean": "put"}]}
+  ]
+}
