@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Intraday — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">02</span>Intraday Check-In</h2>
+    <div class="sub">How the morning plan is holding: today's level interactions (price outcome, then lagged
+      flow confirmation) and the live call/put lean across the index complex.</div>
+  </div>
+  <div class="ph-r">
+    <span class="ph-meta">{{ s.intraday.updated }}</span>
+    <a href="#" class="src">0DTE Levels ↗</a>
+  </div>
+</div>
+
+<div class="ai">
+  <span class="tag">AI Summary</span>
+  <div class="body">{{ s.intraday.summary_html|safe }}</div>
+</div>
+
+<div class="check-grid">
+  <div class="section" style="margin:0;">
+    <div class="section-header"><span class="sh-title">Level Interactions Today</span>
+      <span class="sh-meta">outcome · then lagged flow label</span></div>
+    <div class="section-body">
+      <div class="feed">
+        {% for x in s.intraday.touches %}
+        <div class="fi"><span class="t">{{ x.time }}</span><span class="txt">{{ x.html|safe }} <span class="touch-tag {{ x.tag_class }}">{{ x.tag }}</span></span></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="margin:0;">
+    <div class="section-header"><span class="sh-title">Short-Dated Flow Skew · last 20m</span>
+      <span class="sh-meta">calls vs puts</span></div>
+    <div class="section-body">
+      {% for k in s.intraday.skew %}
+      <div class="skew-row"><span class="sym">{{ k.sym }}</span>
+        <span class="skew"><i class="c" style="width:{{ k.call_pct }}%"></i><i class="p" style="width:{{ 100 - k.call_pct }}%"></i></span>
+        <span class="pct">{{ k.label }}</span></div>
+      {% endfor %}
+      <div class="note" style="margin-top:14px;">
+        Calls leading the index complex into power hour. IWM diverging — its flow stays put-heavy,
+        consistent with the laggard read. A clean SPY <b>684</b> break with call flow behind it is the
+        trigger to flip the PIN regime to TREND.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Position vs. Key Levels — now</span>
+    <span class="sh-meta">nearest wall each side</span></div>
+  <div class="section-body">
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th class="l">Ticker</th><th>Spot</th><th>Regime now</th><th>Nearest above</th>
+          <th>Dist</th><th>Nearest below</th><th>Dist</th><th>Flip dist</th>
+        </tr></thead>
+        <tbody>
+          {% for p in s.intraday.position %}
+          <tr>
+            <td class="l tk">{{ p.sym }}</td><td>{{ p.spot }}</td>
+            <td class="c"><span class="badge" style="background:var(--{{ 'blue' if p.regime_class=='pin' else ('amber' if p.regime_class=='trend' else 'purple') }}-dim);color:var(--{{ 'blue' if p.regime_class=='pin' else ('amber' if p.regime_class=='trend' else 'purple') }})">{{ p.regime }}</span></td>
+            <td>{{ p.above }}</td><td class="up">{{ p.above_dist }}</td>
+            <td>{{ p.below }}</td><td class="down">{{ p.below_dist }}</td><td>{{ p.flip }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      CW = call wall · PW = put wall · 0γ = zero-gamma flip · EM = expected-move band. Flip distance is how
+      far spot sits from the regime-defining zero-gamma strike; a negative value (IWM) means price is below
+      its flip, which is why it reads TRANSITION rather than a clean regime.
+    </div>
+  </div>
+</div>
+
+{% endblock %}

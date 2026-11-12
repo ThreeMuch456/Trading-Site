@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}{{ site_name }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+{% if s.mock %}<div class="mock-banner">Mockup · sample data · Phase 0 shell — not wired to live data</div>{% endif %}
+
+<div class="header">
+  <div class="header-left">
+    <h1><a href="{{ url_for('index') }}">◆ {{ site_name }}</a></h1>
+    <nav class="nav">
+      {% for ep, label in nav_items %}
+        <a href="{{ url_for(ep) }}" class="{{ 'active' if request.endpoint == ep }}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+  <div class="header-right">
+    <span class="meta">{{ s.meta }}</span>
+    <span class="status-pill {{ s.session.phase_class }}">{{ s.session.phase }}</span>
+  </div>
+</div>
+
+<div class="main">
+  {% block content %}{% endblock %}
+</div>
+
+<div class="footer">
+  <span style="max-width:720px; line-height:1.6;">Research &amp; education only — not investment advice.
+    Synthesized from independently-deployed tools; option-derived data is 15-min delayed.</span>
+  <span class="links">
+    <a href="#">Morning Brief ↗</a><a href="#">0DTE Levels ↗</a><a href="#">Flow Scanner ↗</a>
+    <a href="#">Structure ↗</a><a href="#">Deep Dive ↗</a>
+  </span>
+</div>
+
+<script>
+  (function () {
+    var el = document.getElementById('clock');
+    if (!el) return;
+    var base = new Date(); base.setHours(14, 42, 8, 0);
+    var closeMs = new Date(base).setHours(16, 0, 0, 0);
+    function pad(n){ return String(n).padStart(2, '0'); }
+    setInterval(function () {
+      base = new Date(base.getTime() + 1000);
+      var rem = Math.max(0, closeMs - base.getTime());
+      var h = Math.floor(rem / 3600000), m = Math.floor((rem % 3600000) / 60000);
+      el.textContent = pad(base.getHours()) + ':' + pad(base.getMinutes()) + ':' + pad(base.getSeconds()) +
+        ' ET · close in ' + h + 'h ' + pad(m) + 'm';
+    }, 1000);
+  })();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

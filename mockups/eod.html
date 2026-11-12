@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EOD — Trading Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Trading Desk — shared stylesheet (mock)
+   Mirrors the Options-Flow-Scanner / 0DTE-Assistant design system.
+   In the real Flask app this becomes the <style> in base.html.
+   ============================================================ */
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --bg:#0b0f1a; --surface:#111827; --surface2:#1a2235; --border:#1f2d45;
+  --text:#d1dbe8; --muted:#4b6080;
+  --green:#10d98a; --green-dim:#0a7a4e; --red:#ff4466; --red-dim:#7a1a28;
+  --amber:#f5a623; --amber-dim:#7a5010; --blue:#4d9fff; --blue-dim:#1a3d6e;
+  --purple:#a78bfa; --purple-dim:#3d2a6e; --font:'JetBrains Mono',monospace;
+  --green-hot:#25f0a3; --red-hot:#ff5470; --cell-base:#141b2b;
+  --header-h:54px; --main-max:1340px;
+}
+html, body { height:100%; }
+html { font-size:16px; }
+body { font-family:var(--font); background:var(--bg); color:var(--text);
+  font-size:1rem; line-height:1.6; -webkit-font-smoothing:antialiased; }
+a { color:var(--blue); text-decoration:none; }
+a:hover { text-decoration:underline; }
+.num { font-variant-numeric:tabular-nums; }
+.up, .call, .pos { color:var(--green); }
+.down, .put, .neg { color:var(--red); }
+.flat { color:var(--muted); }
+
+/* Header + nav */
+.header { background:#090d18; border-bottom:1px solid var(--border); padding:0 24px;
+  height:var(--header-h); display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:100; }
+.header-left { display:flex; align-items:baseline; gap:22px; min-width:0; }
+.header h1 { font-size:0.95em; font-weight:700; letter-spacing:0.15em; color:var(--blue);
+  text-transform:uppercase; white-space:nowrap; }
+.header h1 a { color:inherit; } .header h1 a:hover { text-decoration:none; }
+.nav { display:flex; align-items:baseline; gap:16px; overflow-x:auto; }
+.nav a { font-size:0.78em; font-weight:600; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--muted); white-space:nowrap; }
+.nav a.active { color:var(--text); }
+.nav a:hover { color:var(--blue); text-decoration:none; }
+.header-right { display:flex; align-items:center; gap:14px; white-space:nowrap; }
+.header .meta { font-size:0.72em; color:var(--muted); letter-spacing:0.04em; }
+.status-pill { font-size:0.64em; font-weight:700; letter-spacing:0.12em; padding:3px 10px;
+  border-radius:3px; text-transform:uppercase; }
+.status-pill.open { background:var(--green-dim); color:var(--green); }
+.status-pill.closed { background:var(--surface2); color:var(--muted); }
+.status-pill.power { background:var(--amber-dim); color:var(--amber); }
+
+/* Layout */
+.main { max-width:var(--main-max); margin:0 auto; padding:22px 24px 72px; }
+
+/* Page head (per-page title) */
+.page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+  flex-wrap:wrap; margin-bottom:20px; }
+.page-head .ph-l { min-width:0; }
+.page-head h2 { font-size:1.35em; font-weight:700; letter-spacing:0.04em; color:var(--text); }
+.page-head h2 .n { color:var(--muted); font-size:0.7em; letter-spacing:0.12em; margin-right:10px;
+  vertical-align:middle; }
+.page-head .sub { font-size:0.82em; color:var(--muted); letter-spacing:0.02em; margin-top:7px;
+  max-width:720px; line-height:1.6; }
+.page-head .ph-r { display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+  flex-shrink:0; }
+.page-head .ph-meta { font-size:0.72em; color:var(--muted); font-variant-numeric:tabular-nums;
+  white-space:nowrap; }
+
+/* Session context bar */
+.context { display:grid; grid-template-columns:1.3fr repeat(3,1fr) 0.8fr 1fr; gap:10px;
+  margin-bottom:20px; }
+.ctx { background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:11px 14px; display:flex; flex-direction:column; gap:3px; }
+.ctx .l { font-size:0.62em; color:var(--muted); letter-spacing:0.14em; text-transform:uppercase; }
+.ctx .v { font-size:1.15em; font-weight:700; font-variant-numeric:tabular-nums; }
+.ctx .s { font-size:0.72em; font-variant-numeric:tabular-nums; }
+.ctx.session { border-left:3px solid var(--amber); }
+.ctx .phase { color:var(--amber); font-weight:700; }
+.tkr-row { display:flex; align-items:baseline; justify-content:space-between; gap:6px; }
+.tkr-row .sym { font-size:0.78em; font-weight:700; letter-spacing:0.06em; }
+.ctx.risk { border-left:3px solid var(--green); justify-content:center; }
+.risk-tag { font-size:0.84em; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  padding:5px 11px; border-radius:4px; align-self:flex-start; }
+.risk-tag.on { background:var(--green-dim); color:var(--green); }
+.risk-tag.off { background:var(--red-dim); color:var(--red); }
+.risk-tag.mixed { background:var(--surface2); color:var(--muted); }
+
+/* Section shell */
+.section { background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  margin-bottom:16px; overflow:hidden; }
+.section-header { background:var(--surface2); border-bottom:1px solid var(--border);
+  padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  flex-wrap:wrap; }
+.section-header .sh-title { font-size:0.76em; font-weight:700; letter-spacing:0.15em;
+  color:var(--text); text-transform:uppercase; display:flex; align-items:center; gap:10px; }
+.section-header .sh-meta { font-size:0.7em; color:var(--muted); letter-spacing:0.04em;
+  font-variant-numeric:tabular-nums; }
+.section-body { padding:18px; }
+
+/* Source chip */
+.src { font-size:0.6em; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  padding:3px 9px; border-radius:3px; border:1px solid var(--border); color:var(--muted);
+  white-space:nowrap; }
+.src:hover { color:var(--blue); border-color:var(--blue); text-decoration:none; }
+
+/* AI summary block */
+.ai { display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:6px;
+  background:linear-gradient(90deg, rgba(167,139,250,0.08), transparent);
+  border:1px solid var(--purple-dim); margin-bottom:18px; }
+.ai .tag { font-size:0.6em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--purple); border:1px solid var(--purple); border-radius:3px; padding:3px 8px;
+  white-space:nowrap; flex-shrink:0; margin-top:3px; background:rgba(167,139,250,0.12); }
+.ai .body { font-size:0.9em; line-height:1.65; color:var(--text); }
+.ai .body b { color:#fff; font-weight:700; }
+.ai .body .lv { color:var(--blue); font-weight:600; }
+
+/* badges */
+.badge { font-size:0.6rem; font-weight:700; letter-spacing:0.1em; padding:3px 8px;
+  border-radius:3px; text-transform:uppercase; display:inline-block; }
+.badge.call { background:var(--green-dim); color:var(--green); }
+.badge.put { background:var(--red-dim); color:var(--red); }
+.badge.wave { background:var(--amber); color:#0b0f1a; }
+.badge.eod { background:var(--purple); color:#0b0f1a; }
+.badge.new { background:var(--green); color:#0b0f1a; }
+.badge.live { background:var(--green-dim); color:var(--green); }
+.badge.watch { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+
+/* Key-levels ticker cards */
+.lvl-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.lvl-card { background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+  overflow:hidden; }
+.lvl-head { display:flex; align-items:center; justify-content:space-between; padding:12px 15px;
+  border-bottom:1px solid var(--border); }
+.lvl-head .sym { font-size:1.15em; font-weight:700; letter-spacing:0.06em; }
+.lvl-head .spot { font-size:1.1em; font-weight:700; font-variant-numeric:tabular-nums; }
+.lvl-head .spot .chg { font-size:0.72em; margin-left:6px; }
+.regime-tag { font-size:0.6em; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  padding:3px 8px; border-radius:3px; }
+.regime-tag.pin { background:var(--blue-dim); color:var(--blue); }
+.regime-tag.trend { background:var(--amber-dim); color:var(--amber); }
+.regime-tag.transition { background:var(--purple-dim); color:var(--purple); }
+.ladder { padding:8px 15px 12px; }
+.lv-row { display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:7px 0; font-size:0.84em; border-bottom:1px solid #16203250; }
+.lv-row:last-child { border-bottom:none; }
+.lv-row .lab { color:var(--muted); display:flex; align-items:center; gap:7px;
+  text-transform:uppercase; letter-spacing:0.06em; font-size:0.86em; }
+.lv-row .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.lv-row .val { font-weight:700; font-variant-numeric:tabular-nums; }
+.lv-row .dist { color:var(--muted); font-size:0.86em; font-variant-numeric:tabular-nums;
+  min-width:52px; text-align:right; }
+.lv-row.spot-row { background:#111d3055; margin:0 -15px; padding:7px 15px; border-radius:3px; }
+.lv-row.spot-row .lab { color:var(--text); }
+.dot.callwall { background:var(--green); } .dot.putwall { background:var(--red); }
+.dot.zero { background:var(--amber); } .dot.vol { background:var(--purple); }
+.dot.spot { background:var(--blue); } .dot.em { background:var(--muted); }
+.lvl-foot { display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:9px 15px; border-top:1px solid var(--border); font-size:0.68em; color:var(--muted); }
+.obs-bar { flex:1; height:6px; background:#0b0f1a; border-radius:3px; overflow:hidden;
+  max-width:120px; }
+.obs-fill { height:100%; background:var(--green); border-radius:3px; }
+.age { font-size:0.9em; }
+.age.live { color:var(--green); } .age.delayed { color:var(--amber); }
+
+/* mini cards */
+.mini { background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+  padding:14px 16px; }
+.mini h4 { font-size:0.66em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:12px; }
+
+/* intraday feed */
+.feed { display:flex; flex-direction:column; gap:9px; }
+.fi { display:flex; gap:10px; align-items:flex-start; font-size:0.84em; padding-bottom:9px;
+  border-bottom:1px solid #16203250; }
+.fi:last-child { border-bottom:none; padding-bottom:0; }
+.fi .t { color:var(--muted); font-variant-numeric:tabular-nums; flex-shrink:0; min-width:48px; }
+.fi .txt { color:var(--text); } .fi .txt b { color:#fff; }
+.touch-tag { font-size:0.58rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+  padding:2px 7px; border-radius:3px; white-space:nowrap; }
+.touch-tag.defended { background:var(--green-dim); color:var(--green); }
+.touch-tag.breached { background:var(--red-dim); color:var(--red); }
+.touch-tag.contested { background:var(--amber-dim); color:var(--amber); }
+
+/* skew bars */
+.skew-row { display:flex; align-items:center; gap:12px; padding:9px 0; font-size:0.84em;
+  border-bottom:1px solid #16203250; }
+.skew-row:last-child { border-bottom:none; }
+.skew-row .sym { font-weight:700; min-width:42px; }
+.skew { display:flex; height:9px; border-radius:4px; overflow:hidden; background:var(--surface);
+  flex:1; }
+.skew i { display:block; height:100%; }
+.skew i.c { background:var(--green); } .skew i.p { background:var(--red); }
+.skew-row .pct { font-variant-numeric:tabular-nums; min-width:80px; text-align:right;
+  color:var(--muted); }
+
+/* flow waves */
+.surge { display:flex; align-items:center; gap:13px; flex-wrap:wrap; padding:13px 16px;
+  border-radius:6px; margin-bottom:10px; font-size:0.86em; }
+.surge.call { background:linear-gradient(90deg,var(--green-dim),transparent);
+  border:1px solid var(--green); }
+.surge.put { background:linear-gradient(90deg,var(--red-dim),transparent);
+  border:1px solid var(--red); }
+.surge .st { font-weight:700; letter-spacing:0.1em; text-transform:uppercase; white-space:nowrap; }
+.surge.call .st { color:var(--green); } .surge.put .st { color:var(--red); }
+.surge .sd { color:var(--text); font-variant-numeric:tabular-nums; }
+.surge .sm { color:var(--muted); margin-left:auto; letter-spacing:0.04em; white-space:nowrap;
+  font-size:0.92em; }
+
+/* EOD positioning chips */
+.eod-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+.eod-chip { background:var(--surface2); border:1px solid var(--border); border-radius:5px;
+  padding:12px 14px; }
+.eod-chip.lean-call { border-color:var(--green-dim); }
+.eod-chip.lean-put { border-color:var(--red-dim); }
+.eod-chip .et { font-size:0.95em; font-weight:700; display:flex; justify-content:space-between;
+  align-items:baseline; gap:8px; }
+.eod-chip .ed { font-size:0.76em; color:var(--muted); margin-top:6px; font-variant-numeric:tabular-nums; }
+.eod-chip .skew { height:7px; margin-top:8px; }
+
+/* data table */
+.table-wrap { overflow-x:auto; }
+table.data { width:100%; border-collapse:collapse; font-size:0.86em; }
+table.data thead th { text-align:right; font-size:0.66rem; font-weight:700; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--muted); padding:10px 12px; border-bottom:1px solid var(--border);
+  white-space:nowrap; }
+table.data thead th.l { text-align:left; } table.data thead th.c { text-align:center; }
+table.data tbody td { padding:11px 12px; border-bottom:1px solid #16203250; text-align:right;
+  white-space:nowrap; font-variant-numeric:tabular-nums; }
+table.data tbody td.l { text-align:left; } table.data tbody td.c { text-align:center; }
+table.data tbody tr:hover td { background:#111d3055; }
+table.data tbody tr:last-child td { border-bottom:none; }
+table.data .tk { font-weight:700; letter-spacing:0.04em; }
+.dir-up { color:var(--green); } .dir-dn { color:var(--red); }
+.score-cell { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+.score-track { width:70px; height:7px; background:var(--surface2); border-radius:4px; overflow:hidden; }
+.score-fill { height:100%; border-radius:4px; }
+.score-val { font-weight:700; min-width:38px; text-align:right; }
+.comp { display:inline-flex; gap:3px; }
+.comp i { width:17px; height:17px; border-radius:3px; display:inline-flex; align-items:center;
+  justify-content:center; font-size:0.56rem; font-weight:700; background:var(--surface2);
+  color:var(--muted); border:1px solid var(--border); font-style:normal; }
+.comp i.on { background:var(--blue-dim); color:var(--blue); border-color:var(--blue); }
+.comp i.on.amp { background:var(--amber-dim); color:var(--amber); border-color:var(--amber); }
+.q-tag { font-size:0.6rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+  padding:2px 7px; border-radius:3px; white-space:nowrap;
+  color:color-mix(in srgb, var(--q) 82%, #fff); border:1px solid var(--q);
+  background:color-mix(in srgb, var(--q) 28%, transparent); }
+.q-leading { --q:var(--green-hot); } .q-improving { --q:#5fb0ff; }
+.q-weakening { --q:#ffb52e; } .q-lagging { --q:var(--red-hot); } .q-neutral { --q:#6b7fa3; }
+
+/* grids */
+.cols2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.check-grid { display:grid; grid-template-columns:1.1fr 1fr; gap:16px; }
+
+/* watchlist + calendar */
+.watch-list { display:flex; flex-direction:column; gap:8px; }
+.wl { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 13px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:5px; font-size:0.86em; }
+.wl .wl-l { display:flex; align-items:center; gap:10px; }
+.wl .wl-sym { font-weight:700; }
+.wl .wl-note { color:var(--muted); font-size:0.9em; }
+.cal { display:flex; flex-direction:column; }
+.cal-row { display:flex; align-items:center; gap:11px; padding:9px 0; font-size:0.84em;
+  border-bottom:1px solid #16203250; }
+.cal-row:last-child { border-bottom:none; }
+.cal-row .ct { color:var(--muted); font-variant-numeric:tabular-nums; min-width:62px; }
+.cal-row .imp { font-size:0.56rem; font-weight:700; letter-spacing:0.08em; padding:2px 6px;
+  border-radius:3px; text-transform:uppercase; }
+.imp.high { background:var(--red-dim); color:var(--red); }
+.imp.med { background:var(--amber-dim); color:var(--amber); }
+.imp.low { background:var(--surface2); color:var(--muted); }
+
+/* note line */
+.note { font-size:0.76em; color:var(--muted); margin-top:16px; padding-top:13px;
+  border-top:1px solid var(--border); line-height:1.65; }
+.note b { color:var(--text); }
+
+/* ---- Overview home: section snapshot cards ---- */
+.ov-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:14px; }
+.ov-card { display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; overflow:hidden; text-decoration:none; color:inherit;
+  transition:border-color .16s, transform .16s, box-shadow .16s; border-top:2px solid var(--ac,var(--blue)); }
+.ov-card:hover { transform:translateY(-3px); border-color:var(--ac,var(--blue)); text-decoration:none;
+  box-shadow:0 10px 30px -14px var(--ac,var(--blue)); }
+.ov-card .ov-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 0; }
+.ov-card .ov-n { font-size:0.68em; font-weight:700; letter-spacing:0.12em; color:var(--ac,var(--blue)); }
+.ov-card .ov-go { font-size:0.7em; font-weight:700; letter-spacing:0.08em; color:var(--ac,var(--blue));
+  text-transform:uppercase; }
+.ov-card h3 { font-size:1.12em; font-weight:700; letter-spacing:0.03em; padding:6px 16px 2px; }
+.ov-card .ov-sub { font-size:0.74em; color:var(--muted); padding:0 16px 12px; letter-spacing:0.06em;
+  text-transform:uppercase; }
+.ov-body { padding:0 16px 14px; flex:1; }
+.ov-stats { display:flex; gap:16px; flex-wrap:wrap; }
+.ov-stat { display:flex; flex-direction:column; gap:1px; }
+.ov-stat .osl { font-size:0.62em; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; }
+.ov-stat .osv { font-size:1.05em; font-weight:700; font-variant-numeric:tabular-nums; }
+.ov-line { font-size:0.8em; color:var(--text); margin-top:12px; line-height:1.55; }
+.ov-line .lv { color:var(--blue); font-weight:600; }
+.ov-foot { border-top:1px solid var(--border); padding:9px 16px; font-size:0.68em; color:var(--muted);
+  display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.ac-blue { --ac:var(--blue); } .ac-green { --ac:var(--green); } .ac-amber { --ac:var(--amber); }
+.ac-purple { --ac:var(--purple); } .ac-red { --ac:var(--red); }
+
+/* footer */
+.footer { border-top:1px solid var(--border); padding:18px 24px; display:flex;
+  align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  font-size:0.7em; color:var(--muted); letter-spacing:0.03em; max-width:var(--main-max);
+  margin:0 auto; }
+.footer .links { display:flex; gap:14px; flex-wrap:wrap; }
+
+/* ---- Trading-Agent fusion: AI bias + conviction + cases ---- */
+.bias-tag { font-size:0.62rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  padding:3px 9px; border-radius:3px; }
+.bias-tag.bullish { background:var(--green-dim); color:var(--green); }
+.bias-tag.bearish { background:var(--red-dim); color:var(--red); }
+.bias-tag.neutral { background:var(--surface2); color:var(--muted); }
+.bias-tag.cautious { background:var(--amber-dim); color:var(--amber); }
+.ai-block { padding:11px 15px; border-bottom:1px solid var(--border);
+  background:linear-gradient(90deg, rgba(167,139,250,0.06), transparent); }
+.ai-block .abh { display:flex; align-items:center; gap:9px; }
+.ai-block .abh .ablabel { font-size:0.58rem; font-weight:700; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--purple); border:1px solid var(--purple); border-radius:3px;
+  padding:2px 6px; background:rgba(167,139,250,0.12); }
+.conv { display:flex; align-items:center; gap:8px; margin:9px 0 2px; }
+.conv .cl { font-size:0.56rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; }
+.conv-track { flex:1; height:6px; background:#0b0f1a; border-radius:3px; overflow:hidden; max-width:150px; }
+.conv-fill { height:100%; border-radius:3px; background:var(--blue); }
+.conv .cv { font-size:0.78em; font-weight:700; font-variant-numeric:tabular-nums; }
+.cases { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:9px; }
+.case { padding:8px 10px; border-radius:5px; font-size:0.76em; line-height:1.5; }
+.case.bull { background:rgba(16,217,138,0.07); border:1px solid var(--green-dim); }
+.case.bear { background:rgba(255,68,102,0.07); border:1px solid var(--red-dim); }
+.case .cl { font-size:0.54rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+  margin-bottom:3px; }
+.case.bull .cl { color:var(--green); } .case.bear .cl { color:var(--red); }
+.rflags { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.rflag { font-size:0.58rem; font-weight:600; letter-spacing:0.03em; padding:3px 8px; border-radius:3px;
+  background:var(--amber-dim); color:var(--amber); }
+
+/* ---- Overview morning-brief banner ---- */
+.brief { background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  border-top:2px solid var(--purple); margin-bottom:16px; overflow:hidden; }
+.brief-head { display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 16px; border-bottom:1px solid var(--border); background:var(--surface2); flex-wrap:wrap; }
+.brief-head .bt { font-size:0.76em; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
+  display:flex; align-items:center; gap:10px; }
+.brief-structure { padding:13px 16px; font-size:0.88em; line-height:1.6; color:var(--text);
+  border-bottom:1px solid var(--border); }
+.brief-structure b { color:#fff; } .brief-structure .lv { color:var(--blue); font-weight:600; }
+.brief-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; }
+.brief-col { padding:13px 16px; border-right:1px solid var(--border); }
+.brief-col:last-child { border-right:none; }
+.brief-col h5 { font-size:0.6em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:9px; }
+.glob { display:flex; flex-direction:column; }
+.glob .greg { font-size:0.56rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase;
+  padding:6px 0 2px; }
+.glob .gr { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0;
+  font-size:0.8em; border-bottom:1px solid #16203250; }
+.glob .gr:last-child { border-bottom:none; }
+.wbrief { display:flex; flex-direction:column; gap:6px; }
+.wbrief li { font-size:0.8em; color:var(--text); list-style:none; display:flex; gap:8px; }
+.wbrief li::before { content:"▸"; color:var(--purple); flex-shrink:0; }
+
+/* ---- EOD grading + performance ---- */
+.grade-tag { font-size:0.58rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+  padding:2px 7px; border-radius:3px; }
+.grade-tag.yes { background:var(--green-dim); color:var(--green); }
+.grade-tag.no { background:var(--red-dim); color:var(--red); }
+.perf-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px;
+  margin-top:4px; }
+.perf { background:var(--surface2); border:1px solid var(--border); border-radius:5px; padding:11px 13px; }
+.perf .pl { font-size:0.58em; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; }
+.perf .pv { font-size:1.3em; font-weight:700; font-variant-numeric:tabular-nums; margin-top:3px; }
+.perf .ps { font-size:0.66em; color:var(--muted); margin-top:2px; }
+
+/* mock banner */
+.mock-banner { background:var(--amber-dim); color:var(--amber); text-align:center;
+  font-size:0.68em; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
+  padding:5px; border-bottom:1px solid var(--amber); }
+
+@media (max-width:1000px) {
+  .lvl-grid { grid-template-columns:1fr; }
+  .context { grid-template-columns:1fr 1fr 1fr; }
+  .check-grid, .cols2 { grid-template-columns:1fr; }
+}
+@media (max-width:640px) {
+  html { font-size:15px; }
+  .header { padding:0 16px; } .main { padding:16px 16px 52px; }
+  .context { grid-template-columns:1fr 1fr; }
+  .ov-grid { grid-template-columns:1fr; }
+}
+
+</style>
+</head>
+<body>
+<div class="mock-banner">Mockup · sample data · layout draft for review — not live</div>
+
+<div class="header">
+  <div class="header-left">
+    <h1><a href="index.html">◆ Trading Desk</a></h1>
+    <nav class="nav">
+      <a href="index.html">Overview</a>
+      <a href="gameplan.html">Gameplan</a>
+      <a href="intraday.html">Intraday</a>
+      <a href="flow.html">Flow</a>
+      <a href="structure.html">Structure</a>
+      <a href="eod.html" class="active">EOD</a>
+    </nav>
+  </div>
+  <div class="header-right">
+    <span class="meta">Massive · 15-min delayed</span>
+    <span class="status-pill closed">Preview</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="page-head">
+    <div class="ph-l">
+      <h2><span class="n">05</span>EOD Summary — Next-Day Positioning</h2>
+      <div class="sub">The session graded against the morning plan, the late-day flow lean that sets up
+        tomorrow, the watchlist carried forward, and the macro calendar for the next session.</div>
+    </div>
+    <div class="ph-r">
+      <span class="ph-meta">Generates 16:10 ET · preview</span>
+      <span class="status-pill closed">Preview</span>
+    </div>
+  </div>
+
+  <div class="ai">
+    <span class="tag">AI Summary</span>
+    <div class="body">
+      <b>Plan graded: good.</b> QQQ long worked (603 break → 605, +0.4R to EM-high); SPY 684 fade paid; IWM
+      stand-aside avoided a chop loss. Index closed with a <b>call lean</b> on SPY/QQQ into Friday expiry — dealers
+      positioned for drift-up, so <span class="lv">684 SPY</span> / <span class="lv">609 QQQ</span> call walls
+      become tomorrow's magnets if CPI cooperates. <b>Tomorrow:</b> CPI 08:30 is the pivot — a hot print flips the
+      call lean fast. Carry NVDA/AMD longs (structure + rotation + live all aligned); drop TSLA (lagging, no confirm).
+    </div>
+  </div>
+
+  <!-- HALF 1 — RETROSPECTIVE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="sh-title">① Today — Graded</span>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="sh-meta">AM bias vs. open→close</span>
+        <a href="#" class="src">Morning Brief ↗</a>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr>
+            <th class="l">Ticker</th><th class="c">AM Bias</th><th>Conv.</th><th>Open</th><th>Close</th>
+            <th>Day %</th><th class="c">Bias Correct</th><th class="l">Note</th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="l tk">SPY</td><td class="c"><span class="bias-tag neutral">Neutral</span></td><td>0.45</td><td>678.90</td><td>682.40</td><td class="up">+0.52%</td><td class="c"><span class="grade-tag yes">Yes</span></td><td class="l">Held range, closed up inside EM</td></tr>
+            <tr><td class="l tk">QQQ</td><td class="c"><span class="bias-tag bullish">Bullish</span></td><td>0.68</td><td>601.40</td><td>605.60</td><td class="up">+0.70%</td><td class="c"><span class="grade-tag yes">Yes</span></td><td class="l">Broke flip, ran to EM-high</td></tr>
+            <tr><td class="l tk">IWM</td><td class="c"><span class="bias-tag bearish">Bearish</span></td><td>0.40</td><td>244.60</td><td>243.90</td><td class="down">-0.29%</td><td class="c"><span class="grade-tag no">No</span></td><td class="l">Chopped flat — low conviction paid</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="perf-grid">
+        <div class="perf"><div class="pl">Today</div><div class="pv up">2 / 3</div><div class="ps">bias correct</div></div>
+        <div class="perf"><div class="pl">30-session acc.</div><div class="pv">58%</div><div class="ps">142 / 245 trades</div></div>
+        <div class="perf"><div class="pl">Brier</div><div class="pv">0.21</div><div class="ps">lower = better calibrated</div></div>
+        <div class="perf"><div class="pl">Neg-γ sessions</div><div class="pv up">63%</div><div class="ps">best regime</div></div>
+        <div class="perf"><div class="pl">Baseline</div><div class="pv flat">54%</div><div class="ps">always-bullish</div></div>
+      </div>
+      <div class="note">
+        Grading and the track record come from the Morning Brief's learning loop — each day's bias is scored
+        open→close and fed back into tomorrow's synthesis to temper conviction where a condition
+        (ticker · bias · gamma regime) has a weak history. Structure and 0DTE touch records live in their own
+        tools, deep-linked.
+      </div>
+    </div>
+  </div>
+
+  <!-- HALF 2 — PROSPECTIVE -->
+  <h3 style="font-size:0.82em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--text); margin:22px 0 13px; display:flex; align-items:center; gap:11px;">
+    ② Setup for Tomorrow
+    <span style="font-size:0.7em; color:var(--muted); letter-spacing:0.03em; text-transform:none; font-weight:400;">next-day positioning</span>
+  </h3>
+
+  <div class="cols2">
+    <div class="section" style="margin:0;">
+      <div class="section-header"><span class="sh-title">Tomorrow's Watchlist</span>
+        <span class="sh-meta">carried from today</span></div>
+      <div class="section-body">
+        <div class="watch-list">
+          <div class="wl"><span class="wl-l"><span class="wl-sym up">NVDA</span><span class="badge live">structure+rot+live</span></span><span class="wl-note">thin resist +0.9% · leading</span></div>
+          <div class="wl"><span class="wl-l"><span class="wl-sym up">AMD</span><span class="badge live">structure+rot+live</span></span><span class="wl-note">thin resist +1.4% · leading</span></div>
+          <div class="wl"><span class="wl-l"><span class="wl-sym up">QQQ</span><span class="badge call">momentum</span></span><span class="wl-note">605→609 open room if holds 602</span></div>
+          <div class="wl"><span class="wl-l"><span class="wl-sym down">META</span><span class="badge watch">watch only</span></span><span class="wl-note">thin support -1.1% · weakening</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="margin:0;">
+      <div class="section-header"><span class="sh-title">Macro Calendar · Fri Nov 13</span>
+        <span class="sh-meta">next session</span></div>
+      <div class="section-body">
+        <div class="cal">
+          <div class="cal-row"><span class="ct">08:30</span><span class="imp high">High</span><span class="txt"><b>CPI</b> (Oct) — core m/m exp +0.3%</span></div>
+          <div class="cal-row"><span class="ct">08:30</span><span class="imp high">High</span><span class="txt">Initial Jobless Claims</span></div>
+          <div class="cal-row"><span class="ct">10:00</span><span class="imp med">Med</span><span class="txt">U. Michigan Sentiment (prelim)</span></div>
+          <div class="cal-row"><span class="ct">13:00</span><span class="imp low">Low</span><span class="txt">Baker Hughes Rig Count</span></div>
+          <div class="cal-row"><span class="ct">—</span><span class="imp med">Med</span><span class="txt">Fri OPEX — elevated pin risk at walls</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><span class="sh-title">Next-Session Risk Read</span></div>
+    <div class="section-body" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+      <span class="risk-tag mixed" style="font-size:0.9em;">Mixed · event-gated</span>
+      <span style="font-size:0.86em; color:var(--muted); line-height:1.6; flex:1; min-width:280px;">
+        CPI at 08:30 dominates — the call lean is the base case, but a hot core print voids it and the 684/609
+        magnets flip to resistance. Size down into the number; let the first 15 minutes set the tone before
+        acting on the carried watchlist.
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <span style="max-width:720px; line-height:1.6;">Research &amp; education only — not investment advice.
+    Synthesized from independently-deployed tools; option-derived data is 15-min delayed.</span>
+  <span class="links"><a href="index.html">Overview</a><a href="gameplan.html">Gameplan</a><a href="intraday.html">Intraday</a><a href="flow.html">Flow</a><a href="structure.html">Structure</a></span>
+</div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Structure — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">04</span>Structure Recs — Scored Watchlist</h2>
+    <div class="sub">Thin-zone setups (volume-by-price air pockets near price) that clear the agreement gate,
+      enriched with sector rotation, the long-term quant score, and intraday live-activation.</div>
+  </div>
+  <div class="ph-r">
+    <span class="ph-meta">{{ s.structure.as_of }}</span>
+    <a href="#" class="src">Structure ↗</a>
+  </div>
+</div>
+
+{% macro comp(letter, val) %}
+<i class="{{ 'on amp' if val == 'amp' else ('on' if val else '') }}">{{ letter }}</i>
+{%- endmacro %}
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Ranked Setups</span>
+    <span class="sh-meta">{{ s.structure.recs|length }} passing · sorted by combined score</span></div>
+  <div class="section-body">
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th class="l">Ticker</th><th>Price</th><th class="c">Dir</th><th class="l">Thin Zone</th>
+            <th>Dist</th><th class="c">Components</th><th class="c">Rotation</th>
+            <th class="c">Quant</th><th class="c">Live</th><th>Combined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in s.structure.recs %}
+          <tr>
+            <td class="l tk">{{ r.sym }}</td><td>{{ r.price }}</td>
+            <td class="c {{ r.dir_class }}">{{ r.dir }}</td>
+            <td class="l">{{ r.zone }}</td><td>{{ r.dist }}</td>
+            <td class="c"><span class="comp">{{ comp('Z', r.comp.z) }}{{ comp('F', r.comp.f) }}{{ comp('G', r.comp.g) }}{{ comp('R', r.comp.r) }}</span></td>
+            <td class="c"><span class="q-tag {{ r.rotation_class }}">{{ r.rotation }}</span></td>
+            <td class="c {{ r.quant_class }}">{{ r.quant }}</td>
+            <td class="c"><span class="badge {{ r.live_class }}">{{ r.live }}</span></td>
+            <td><div class="score-cell"><span class="score-track"><span class="score-fill" style="width:{{ r.score_pct }}%; background:{{ r.score_color }}"></span></span><span class="score-val {{ r.score_class }}">{{ r.score }}</span></div></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>Combined score</b> from the Thin-Zone engine: a setup must clear the agreement gate — ≥2 of
+      <b>Z</b>one · <b>F</b>lag · <b>G</b>EX-amp · <b>R</b>VOL-amp, with at least one of Zone/Flag — or it scores
+      0 and drops off. Amplifiers (G/R) shown amber. <b>Rotation</b> comes from the Sector-Scanner RRG quadrant,
+      <b>Quant</b> from the Stock Deep-Dive scorecard (0–100), <b>Live</b> from the intraday activation monitor
+      (15-min delayed confirmation, never a trigger).
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">How the enrichment stacks</span>
+    <span class="sh-meta">one engine's recs, scored by the others</span></div>
+  <div class="section-body">
+    <div class="cols2">
+      <div class="mini">
+        <h4>Component Legend</h4>
+        <div class="feed">
+          <div class="fi"><span class="comp"><i class="on">Z</i></span><span class="txt"><b>Zone</b> — a thin LVN (air pocket) near price with no HVN in between</span></div>
+          <div class="fi"><span class="comp"><i class="on">F</i></span><span class="txt"><b>Flag</b> — a pole/flag continuation pattern on the structure</span></div>
+          <div class="fi"><span class="comp"><i class="on amp">G</i></span><span class="txt"><b>GEX amp</b> — negative dealer gamma that amplifies the move</span></div>
+          <div class="fi"><span class="comp"><i class="on amp">R</i></span><span class="txt"><b>RVOL amp</b> — relative-volume surge confirming participation</span></div>
+        </div>
+      </div>
+      <div class="mini">
+        <h4>Read of the Board</h4>
+        <div class="note" style="margin:0; padding:0; border:none;">
+          Two names — <b>NVDA</b> and <b>AMD</b> — have everything lined up: a thin zone, a flag, negative-GEX
+          amplification, a leading sector, a healthy quant score, <b>and</b> live intraday confirmation. Those
+          carry the highest conviction. <b>TSLA</b> passes the gate on structure alone but its sector is
+          lagging, quant is weak and it isn't firing — watch, don't chase. The enrichment columns are exactly
+          how the Structure engine's raw recs get turned into a ranked, context-aware watchlist.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

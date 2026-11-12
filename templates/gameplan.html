@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Gameplan — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">01</span>Morning Gameplan</h2>
+    <div class="sub">AI bias and the mechanical level map for SPY · QQQ · IWM, fused per ticker. The AI read
+      comes from the Morning Brief; the levels are rebuilt from classified flow on the frozen 09:30 baseline.</div>
+  </div>
+  <div class="ph-r">
+    <span class="ph-meta">AI brief 08:52 · levels frozen 09:34 ET</span>
+    <span style="display:flex; gap:7px;"><a href="#" class="src">Morning Brief ↗</a><a href="#" class="src">0DTE Levels ↗</a></span>
+  </div>
+</div>
+
+<div class="ai">
+  <span class="tag">AI Summary</span>
+  <div class="body">{{ s.gameplan_summary_html|safe }}</div>
+</div>
+
+<div class="lvl-grid">
+  {% for t in s.tickers %}
+  <div class="lvl-card">
+    <div class="lvl-head">
+      <span class="sym">{{ t.sym }}</span><span><span class="regime-tag {{ t.regime_class }}">{{ t.regime }}</span></span>
+      <span class="spot num">{{ t.spot }} <span class="chg {{ t.chg_class }}">{{ t.chg }}</span></span>
+    </div>
+    <div class="ai-block">
+      <div class="abh"><span class="ablabel">AI</span><span class="bias-tag {{ t.bias_class }}">{{ t.bias }}</span></div>
+      <div class="conv"><span class="cl">Conviction</span><span class="conv-track"><span class="conv-fill" style="width:{{ t.conviction_pct }}%; background:{{ t.conviction_color }}"></span></span><span class="cv">{{ t.conviction }}</span></div>
+      <div class="cases">
+        <div class="case bull"><div class="cl">Bull</div>{{ t.bull|safe }}</div>
+        <div class="case bear"><div class="cl">Bear</div>{{ t.bear|safe }}</div>
+      </div>
+      <div class="rflags">{% for f in t.risk_flags %}<span class="rflag">{{ f }}</span>{% endfor %}</div>
+    </div>
+    <div class="ladder">
+      {% for lv in t.levels %}
+      <div class="lv-row {{ 'spot-row' if lv.is_spot }}">
+        <span class="lab"><span class="dot {{ lv.kind }}"></span>{{ lv.name }}</span>
+        <span class="val {{ lv.val_class }}">{{ lv.price }}</span><span class="dist">{{ lv.dist }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="lvl-foot">
+      <span>Observed <b style="color:{{ t.observed_class }}">{{ t.observed }}%</b></span>
+      <span class="obs-bar"><span class="obs-fill" style="width:{{ t.observed }}%; background:{{ t.observed_class }}"></span></span>
+      <span class="age delayed">{{ t.flow_age }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="section" style="margin-top:16px;">
+  <div class="section-header"><span class="sh-title">Scenario Map</span>
+    <span class="sh-meta">derived from levels — not advice</span></div>
+  <div class="section-body">
+    <div class="cols2">
+      <div class="mini">
+        <h4>If / Then — SPY</h4>
+        <div class="feed">
+          {% for r in s.scenarios.spy %}
+          <div class="fi"><span class="t {{ r.arrow_class }}">{{ r.arrow }}</span><span class="txt">{{ r.html|safe }}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="mini">
+        <h4>If / Then — QQQ &amp; IWM</h4>
+        <div class="feed">
+          {% for r in s.scenarios.qqq_iwm %}
+          <div class="fi"><span class="t {{ r.arrow_class }}">{{ r.arrow }}</span><span class="txt">{{ r.html|safe }}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="note">
+      Levels are mechanical, rebuilt from classified flow on a frozen 09:30 OI baseline.
+      <b>Observed%</b> is the share of each map proved by same-day flow vs. assumed from the baseline — the
+      key quality signal. Underlying spot is near-live; option-derived levels carry a 15-min delay badge.
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Flow — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">03</span>Short-Dated Index Flow</h2>
+    <div class="sub">Notable 0DTE / 1DTE flow on SPY · QQQ · IWM — fresh one-sided waves in the last 15 minutes,
+      and the late-day positioning that carries into the next session.</div>
+  </div>
+  <div class="ph-r">
+    <span class="ph-meta">{{ s.flow.session_label }}</span>
+    <a href="#" class="src">Flow Scanner ↗</a>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Fresh Flow Waves · last 15m</span>
+    <span class="sh-meta">one-sided bursts — the headline read</span></div>
+  <div class="section-body">
+    {% for w in s.flow.waves %}
+    <div class="surge {{ w.side }}">
+      <span class="st">⚡ {{ w.sym }} {{ w.side|capitalize }} Wave</span>
+      <span class="sd">{{ w.call_n }} calls vs {{ w.put_n }} puts — {{ w.skew_pct }}% {{ w.side }}s</span>
+      <span class="skew" style="max-width:180px;"><i class="c" style="width:{{ w.skew_pct }}%"></i><i class="p" style="width:{{ 100 - w.skew_pct }}%"></i></span>
+      <span class="sd">{{ w.lead }}</span>
+      <span class="sm">{{ w.meta }}</span>
+    </div>
+    {% endfor %}
+    <div class="note">
+      A wave is a one-sided burst of fresh volume (new prints, not open interest) clearing the significance
+      threshold in the window. Direction is the dominant side; premium is the notional of just the contracts
+      that printed in these 15 minutes.
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Session Skew by Ticker</span>
+    <span class="sh-meta">full session · calls vs puts</span></div>
+  <div class="section-body">
+    {% for k in s.flow.session_skew %}
+    <div class="skew-row"><span class="sym">{{ k.sym }}</span>
+      <span class="skew"><i class="c" style="width:{{ k.call_pct }}%"></i><i class="p" style="width:{{ 100 - k.call_pct }}%"></i></span>
+      <span class="pct">{{ k.label }}</span></div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="sh-title"><span class="badge eod" style="margin-right:8px;">EOD</span> Late-Day Positioning</span>
+    <span class="sh-meta">read on tomorrow · contracts outliving the session</span>
+  </div>
+  <div class="section-body">
+    <div class="eod-grid">
+      {% for e in s.flow.eod %}
+      <div class="eod-chip lean-{{ e.lean }}">
+        <div class="et">{{ e.sym }} <span class="badge {{ e.lean }}">{{ e.lean|capitalize }} lean</span></div>
+        <div class="skew"><i class="c" style="width:{{ e.call_pct }}%"></i><i class="p" style="width:{{ 100 - e.call_pct }}%"></i></div>
+        <div class="ed">{{ e.detail }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="note">
+      End-of-day positioning holds the session's late flow into contracts that expire <b>after</b> today —
+      the read on the session about to start. SPY and QQQ close call-leaning into Friday's expiry; IWM stays
+      put-heavy, the same divergence seen in intraday. These strike buckets become tomorrow's magnets.
+    </div>
+  </div>
+</div>
+
+{% endblock %}

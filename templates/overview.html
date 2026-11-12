@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Overview — {{ site_name }}{% endblock %}
+{% block content %}
+
+<!-- SESSION CONTEXT BAR -->
+<div class="context">
+  <div class="ctx session">
+    <span class="l">Session · {{ s.session.date_label }}</span>
+    <span class="v phase">{{ s.session.phase }}</span>
+    <span class="s" id="clock">{{ s.session.clock }}</span>
+  </div>
+  {% for t in s.context.tickers %}
+  <div class="ctx">
+    <div class="tkr-row"><span class="sym">{{ t.sym }}</span><span class="{{ t.chg_class }}">{{ t.chg }}</span></div>
+    <span class="v num">{{ t.price }}</span><span class="s {{ t.note_class }}">{{ t.note }}</span>
+  </div>
+  {% endfor %}
+  <div class="ctx">
+    <span class="l">VIX</span><span class="v num">{{ s.context.vix }}</span>
+    <span class="s {{ s.context.vix_class }}">{{ s.context.vix_chg }}</span>
+  </div>
+  <div class="ctx risk">
+    <span class="l">Risk Rating · AM Brief</span>
+    <span class="risk-tag {{ s.context.risk_class }}">{{ s.context.risk_rating }}</span>
+  </div>
+</div>
+
+<!-- MORNING BRIEF BANNER (Trading-Agent) -->
+<div class="brief">
+  <div class="brief-head">
+    <span class="bt">◆ Morning Brief <span class="status-pill power" style="background:var(--purple-dim);color:var(--purple)">AI</span></span>
+    <span style="display:flex; align-items:center; gap:10px;">
+      <span class="ph-meta" style="font-size:0.72em;color:var(--muted)">{{ s.brief.synthesized_at }}</span>
+      <a href="#" class="src">Morning Brief ↗</a>
+    </span>
+  </div>
+  <div class="brief-structure">{{ s.brief.structure_html|safe }}</div>
+  <div class="brief-grid">
+    <div class="brief-col">
+      <h5>Overnight / Global</h5>
+      <div class="glob">
+        {% for g in s.brief.globals %}
+          {% if g.region %}<div class="greg">{{ g.region }}</div>{% endif %}
+          <div class="gr"><span>{{ g.name }}</span><span class="{{ g.cls }} num">{{ g.chg }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="brief-col">
+      <h5>Macro Today · {{ s.session.date_label }}</h5>
+      <div class="cal">
+        {% for c in s.brief.calendar %}
+        <div class="cal-row"><span class="ct">{{ c.time }}</span><span class="imp {{ c.imp_class }}">{{ c.imp }}</span><span class="txt">{{ c.text|safe }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="brief-col">
+      <h5>Watch Today</h5>
+      <ul class="wbrief">
+        {% for w in s.brief.watch %}<li>{{ w }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION SNAPSHOT CARDS -->
+<div class="ov-grid">
+  {% for c in s.overview_cards %}
+  <a class="ov-card {{ c.accent }}" href="{{ url_for(c.href) }}">
+    <div class="ov-head"><span class="ov-n">{{ c.n }}</span><span class="ov-go">Open →</span></div>
+    <h3>{{ c.title }}</h3>
+    <div class="ov-sub">{{ c.sub }}</div>
+    <div class="ov-body">
+      <div class="ov-stats">
+        {% for st in c.stats %}
+        <div class="ov-stat">
+          <span class="osl">{{ st.l }}</span>
+          <span class="osv">
+            {% if st.badge %}<span class="badge" style="background:{{ st.badge[1] }};color:{{ st.badge[2] }}">{{ st.badge[0] }}</span>
+            {% else %}<span class="{{ st.v_class }}">{{ st.v }}</span>{% if st.badge_after %} <span class="badge {{ st.badge_after[0] }}">{{ st.badge_after[1] }}</span>{% endif %}
+            {% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="ov-line">{{ c.line_html|safe }}</div>
+    </div>
+    <div class="ov-foot"><span>{{ c.foot_l }}</span><span>{{ c.foot_r }}</span></div>
+  </a>
+  {% endfor %}
+</div>
+
+{% endblock %}

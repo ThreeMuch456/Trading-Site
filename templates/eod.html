@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}EOD — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">05</span>EOD Summary — Next-Day Positioning</h2>
+    <div class="sub">The session graded against the morning plan, the late-day flow lean that sets up tomorrow,
+      the watchlist carried forward, and the macro calendar for the next session.</div>
+  </div>
+  <div class="ph-r">
+    <span class="ph-meta">Generates 16:15 ET · preview</span>
+    <span class="status-pill closed">Preview</span>
+  </div>
+</div>
+
+<div class="ai">
+  <span class="tag">AI Summary</span>
+  <div class="body">{{ s.eod.summary_html|safe }}</div>
+</div>
+
+<!-- HALF 1 — RETROSPECTIVE -->
+<div class="section">
+  <div class="section-header">
+    <span class="sh-title">① Today — Graded</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="sh-meta">AM bias vs. open→close</span>
+      <a href="#" class="src">Morning Brief ↗</a>
+    </div>
+  </div>
+  <div class="section-body">
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th class="l">Ticker</th><th class="c">AM Bias</th><th>Conv.</th><th>Open</th><th>Close</th>
+          <th>Day %</th><th class="c">Bias Correct</th><th class="l">Note</th>
+        </tr></thead>
+        <tbody>
+          {% for g in s.eod.grades %}
+          <tr>
+            <td class="l tk">{{ g.sym }}</td>
+            <td class="c"><span class="bias-tag {{ g.bias_class }}">{{ g.bias }}</span></td>
+            <td>{{ g.conv }}</td><td>{{ g.open }}</td><td>{{ g.close }}</td>
+            <td class="{{ g.day_class }}">{{ g.day_pct }}</td>
+            <td class="c"><span class="grade-tag {{ g.correct_class }}">{{ g.correct }}</span></td>
+            <td class="l">{{ g.note }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="perf-grid">
+      {% for p in s.eod.performance %}
+      <div class="perf"><div class="pl">{{ p.label }}</div><div class="pv {{ p.value_class }}">{{ p.value }}</div><div class="ps">{{ p.sub }}</div></div>
+      {% endfor %}
+    </div>
+    <div class="note">
+      Grading and the track record come from the Morning Brief's learning loop — each day's bias is scored
+      open→close and fed back into tomorrow's synthesis to temper conviction where a condition
+      (ticker · bias · gamma regime) has a weak history. Structure and 0DTE touch records live in their own
+      tools, deep-linked.
+    </div>
+  </div>
+</div>
+
+<!-- HALF 2 — PROSPECTIVE -->
+<h3 style="font-size:0.82em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--text); margin:22px 0 13px; display:flex; align-items:center; gap:11px;">
+  ② Setup for Tomorrow
+  <span style="font-size:0.7em; color:var(--muted); letter-spacing:0.03em; text-transform:none; font-weight:400;">next-day positioning</span>
+</h3>
+
+<div class="cols2">
+  <div class="section" style="margin:0;">
+    <div class="section-header"><span class="sh-title">Tomorrow's Watchlist</span>
+      <span class="sh-meta">carried from today</span></div>
+    <div class="section-body">
+      <div class="watch-list">
+        {% for w in s.eod.watchlist %}
+        <div class="wl"><span class="wl-l"><span class="wl-sym {{ w.sym_class }}">{{ w.sym }}</span><span class="badge {{ w.tag_class }}">{{ w.tag }}</span></span><span class="wl-note">{{ w.note }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="margin:0;">
+    <div class="section-header"><span class="sh-title">Macro Calendar · Fri Nov 13</span>
+      <span class="sh-meta">next session</span></div>
+    <div class="section-body">
+      <div class="cal">
+        {% for c in s.eod.calendar %}
+        <div class="cal-row"><span class="ct">{{ c.time }}</span><span class="imp {{ c.imp_class }}">{{ c.imp }}</span><span class="txt">{{ c.text|safe }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Next-Session Risk Read</span></div>
+  <div class="section-body" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+    <span class="risk-tag mixed" style="font-size:0.9em;">{{ s.eod.risk_next }}</span>
+    <span style="font-size:0.86em; color:var(--muted); line-height:1.6; flex:1; min-width:280px;">{{ s.eod.risk_note }}</span>
+  </div>
+</div>
+
+{% endblock %}
