@@ -20,7 +20,7 @@ try:
 except Exception:
     pass
 
-from desk.sample_data import snapshot
+from desk.fetch import get_snapshot
 
 app = Flask(__name__)
 
@@ -40,7 +40,8 @@ NAV_ITEMS = [
 @app.context_processor
 def inject_globals():
     # Shared by every template: site name, nav, and the current snapshot.
-    return {"site_name": SITE_NAME, "nav_items": NAV_ITEMS, "s": snapshot()}
+    # get_snapshot() is cached (DESK_CACHE_TTL) and fails soft to sample data.
+    return {"site_name": SITE_NAME, "nav_items": NAV_ITEMS, "s": get_snapshot()}
 
 
 @app.route("/")
@@ -75,7 +76,12 @@ def eod():
 
 @app.route("/healthz")
 def healthz():
-    return {"status": "ok", "phase": "0-shell", "data": "sample"}, 200
+    s = get_snapshot()
+    return {
+        "status": "ok",
+        "live": s.get("live", False),
+        "sources_degraded": s.get("degraded", {}),
+    }, 200
 
 
 if __name__ == "__main__":

@@ -370,6 +370,12 @@ table.data .tk { font-weight:700; letter-spacing:0.04em; }
 .perf .pv { font-size:1.3em; font-weight:700; font-variant-numeric:tabular-nums; margin-top:3px; }
 .perf .ps { font-size:0.66em; color:var(--muted); margin-top:2px; }
 
+/* degraded banner */
+.degraded-banner { background:var(--red-dim); color:#ffd7de; text-align:center;
+  font-size:0.68em; font-weight:600; letter-spacing:0.04em; padding:5px 16px;
+  border-bottom:1px solid var(--red); }
+.degraded-banner b { color:var(--red); text-transform:uppercase; letter-spacing:0.08em; }
+
 /* mock banner */
 .mock-banner { background:var(--amber-dim); color:var(--amber); text-align:center;
   font-size:0.68em; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;

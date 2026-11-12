@@ -1,0 +1,191 @@
+{
+  "available": true,
+  "date": "2026-06-26",
+  "fetched_at": "2026-06-26T14:28:24",
+  "gameplan": {
+    "market_structure": "SPY is trading at 728.99, fractionally below its 50-day MA (733.77) and well above its 200-day MA (690.14), placing it in a weakening but still structurally bullish regime \u2014 the pullback from the 760.40 year high is ~4.1%. QQQ closed at 706.52, just above its 50-day MA (701.41) and far above its 200-day MA (631.52); yesterday's -1.38% drop was the sharpest of the three, suggesting tech led the selling. IWM at 299.83 is the relative outperformer \u2014 up 0.31% yesterday, near 52-week highs (301.50), and the only ticker holding above its 50-day MA (284.00) with meaningful cushion. The overnight tape is sharply bifurcated: Asia ripped (Nikkei +4.61%, KOSPI +5.42%) while Europe sold off (DAX -1.29%, Euro Stoxx -0.73%), a divergence that signals a headline-driven, indecisive open rather than clean directional follow-through \u2014 the FOMC decision today is almost certainly the dominant variable suppressing any sustained pre-decision move.",
+    "gameplan": {
+      "SPY": {
+        "bias": "cautious",
+        "bull_case": "Reclaim and hold above 730 call wall on post-FOMC dovish surprise; initial target 732, secondary target 734 (max pain / dense call wall cluster). A clean break above 734 opens 736.",
+        "bear_case": "Failure to reclaim 730 and a break below the gamma flip / put wall at 728 on hawkish Fed tone; first target 726.86 (session low), extended target 724. Below 724, next structural support near 720.",
+        "key_levels": [
+          "728.00: gamma flip / put wall \u2014 critical line in the sand",
+          "730.00: first call wall / near-term resistance",
+          "732.00: heavy call wall (largest GEX cluster, ~376M)",
+          "733.00: call wall / 50-day MA confluence (733.77)",
+          "734.00: max pain / upper call wall \u2014 magnet into EOD expiry",
+          "726.86: yesterday's session low / near-term floor",
+          "724.00: next soft support below session lows"
+        ],
+        "risk_flags": [
+          "FOMC today \u2014 binary event renders directional bias unreliable; historical calibration note explicitly flags this",
+          "Spot at 728.99 is sitting directly on the gamma flip (728); a tick either way changes dealer hedging behavior",
+          "Massive put volume at 732, 733, 734 strikes (vol/OI ratios 50-74x) is almost entirely same-day expiry unwinding \u2014 these prints are noise for tomorrow but create intraday pinning pressure toward max pain at 734 pre-decision, then rapid repricing post-FOMC",
+          "SPY below 50-day MA (733.77) for the first time recently \u2014 momentum deteriorating",
+          "Put/call vol ratio 1.304 indicates active hedging into the event",
+          "Volume 69.2M vs 10-day avg 66.2M \u2014 modestly elevated, consistent with hedging flows not panic"
+        ]
+      },
+      "QQQ": {
+        "bias": "cautious",
+        "bull_case": "Hold above gamma flip at 705 and reclaim 708 call wall on dovish FOMC; initial target 711, then 713-714 where unusual call flow concentrated (vol/OI ratios 130-295x suggest speculative upside positioning). Above 715, path to 718 max pain.",
+        "bear_case": "Break below 705 put wall cluster (705/706/707 all heavy negative GEX, combined ~-2.37B) on hawkish surprise triggers dealer short-gamma amplification; target 700 round number, then 695-696 area.",
+        "key_levels": [
+          "705.00: gamma flip / dominant put wall (-1.14B GEX) \u2014 key bull/bear dividing line",
+          "706.52: current spot / 706 put wall",
+          "707.00: put wall (-938M GEX) \u2014 break here accelerates downside",
+          "708.00: first call wall / inflection to upside",
+          "711-714: cluster of speculative call flow \u2014 upside target zone post-dovish FOMC",
+          "718.00: max pain \u2014 distant magnet, only relevant on strong rally",
+          "702.81: yesterday's session low / initial downside support",
+          "700.00: psychological / round number support"
+        ],
+        "risk_flags": [
+          "QQQ is in NEGATIVE gamma \u2014 dealers amplify moves; post-FOMC move, whichever direction, will be larger and faster than SPY",
+          "Spot (706.52) is sandwiched between put walls at 705, 706, 707 \u2014 the negative GEX stack is enormous (-2.83B net); a break of 705 is high conviction accelerant to the downside",
+          "FOMC binary risk especially dangerous in negative gamma environment \u2014 historical data shows 67% accuracy in negative gamma, but FOMC-day directional calls are explicitly flagged as unreliable",
+          "Put/call OI ratio 1.423 \u2014 elevated structural hedging in place",
+          "Unusual call buying at 711-714 (vol/OI 130-295x) could be speculative FOMC lottery tickets, not informed flow \u2014 don't chase",
+          "QQQ volume 44.7M vs 10-day avg 51.6M \u2014 below average, suggesting uncertainty and lack of conviction pre-FOMC"
+        ]
+      },
+      "IWM": {
+        "bias": "neutral",
+        "bull_case": "Sustain above gamma flip at 300 on a risk-on FOMC read (rate cut signal or dovish hold); IWM historically most sensitive to rate expectations. Target 301 (call wall), then 301.50 (52-week high breakout). A new 52-week high above 301.50 is the most significant technical trigger for a momentum extension.",
+        "bear_case": "Lose 300 gamma flip and fail to hold 299 put wall; dealers flip from damping to amplifying. Target 297-297.50 (put wall cluster with elevated IV at 11-12%), then 295 (max pain level) on hawkish shock.",
+        "key_levels": [
+          "300.00: gamma flip \u2014 massive call wall (1.51B GEX), the dominant level of the day",
+          "299.83: current spot \u2014 sitting just below the gamma flip",
+          "299.00: put wall / unusual put+call activity \u2014 support/battleground",
+          "301.00: call wall / near 52-week high",
+          "301.50: 52-week high \u2014 breakout trigger",
+          "297.00-297.50: put wall cluster with elevated IV \u2014 next material support",
+          "295.00: max pain \u2014 far below, only relevant on severe drawdown"
+        ],
+        "risk_flags": [
+          "IWM historical accuracy: 0/1 (0%) \u2014 prior neutral bias on IWM was wrong; calibration note warrants reduced conviction on IWM read today",
+          "Spot at 299.83 is 17 cents below the gamma flip at 300 \u2014 the 1.51B GEX call wall at 300 creates a strong ceiling; this is a knife-edge position going into FOMC",
+          "IWM put/call OI ratio 1.656 \u2014 highest of the three, most hedged; small-caps carry more credit/rate sensitivity and traders are positioned defensively",
+          "Max pain at 295 is nearly $5 below spot \u2014 unusual divergence suggesting the options market doesn't expect a pin near current levels; post-FOMC resolution could be violent",
+          "FOMC is the primary driver for IWM given small-cap rate sensitivity \u2014 any hawkish signal hits IWM hardest",
+          "Volume 38.3M vs 10-day avg 30.2M \u2014 elevated at +27%; unusual activity into the FOMC, may reflect institutional hedging of rate-sensitive positions"
+        ]
+      }
+    },
+    "macro_context": "Today's session is dominated by the FOMC press release (intraday, ~2:00 PM ET) \u2014 a binary, high-volatility event that makes pre-decision directional positioning unreliable; the historical calibration explicitly flags FOMC days as accuracy-degrading for bias calls. Looking ahead, the Employment Situation (NFP) prints in 6 days on July 2, meaning any hawkish FOMC surprise today will be compounded by uncertainty around labor data next week, keeping risk premium elevated through month-end.",
+    "gamma_summary": "SPY is in positive gamma just above the 728 flip, which should dampen intraday swings and create a gravitational pull toward max pain at 734 pre-FOMC \u2014 but that dynamic evaporates instantly on a large post-decision move. QQQ is in deeply negative gamma (-2.83B net) with spot wedged between multiple put walls at 705-707; dealers here amplify directional moves, meaning any post-FOMC breakout in QQQ \u2014 up or down \u2014 runs farther and faster than the market expects. IWM sits a whisker below the dominant 300 call wall (1.51B GEX), creating a pinning/ceiling effect pre-FOMC that resolves sharply once the decision lands.",
+    "overall_risk_rating": "high",
+    "watch_list": [
+      "FOMC press release language \u2014 specifically whether the statement signals rate cuts in 2026, a higher-for-longer stance, or any change to balance sheet policy; this is the single most important variable for all three tickers today",
+      "SPY 728 gamma flip and QQQ 705 put wall \u2014 a simultaneous breach of both in the same direction post-FOMC would be a high-conviction signal that the move is real and dealers are amplifying it",
+      "IWM 300 level \u2014 watch whether IWM can break and hold above the 300 call wall (1.51B GEX) on a dovish reaction; a new 52-week high above 301.50 is the cleanest risk-on signal given small-cap rate sensitivity",
+      "QQQ unusual call flow at 711-714 strikes (vol/OI 130-295x) \u2014 if QQQ rips post-FOMC, these strikes represent the market's implied upside lottery zone; monitor how quickly delta hedging flows through those levels",
+      "Post-FOMC VIX/IV collapse or spike \u2014 given zero IV on many SPY and IWM strikes at expiry today, watch whether realized vol exceeds or undershoots the implied move; a volatility crush post-decision with no follow-through would favor fading the initial knee-jerk reaction"
+    ]
+  },
+  "global_markets": {
+    "fetched_at": "2026-06-26T14:28:27",
+    "indices": [
+      {
+        "symbol": "^N225",
+        "name": "Nikkei 225",
+        "country": "Japan",
+        "region": "Asia",
+        "last": 72366.34,
+        "change_pct": 4.61,
+        "as_of": "2026-06-25"
+      },
+      {
+        "symbol": "^KS11",
+        "name": "KOSPI",
+        "country": "South Korea",
+        "region": "Asia",
+        "last": 8930.3,
+        "change_pct": 5.42,
+        "as_of": "2026-06-25"
+      },
+      {
+        "symbol": "^TWII",
+        "name": "TAIEX",
+        "country": "Taiwan",
+        "region": "Asia",
+        "last": 46255.26,
+        "change_pct": 0.46,
+        "as_of": "2026-06-25"
+      },
+      {
+        "symbol": "000001.SS",
+        "name": "Shanghai Comp",
+        "country": "China",
+        "region": "Asia",
+        "last": 4120.28,
+        "change_pct": 0.23,
+        "as_of": "2026-06-25"
+      },
+      {
+        "symbol": "^HSI",
+        "name": "Hang Seng",
+        "country": "Hong Kong",
+        "region": "Asia",
+        "last": 23076.91,
+        "change_pct": -1.43,
+        "as_of": "2026-06-25"
+      },
+      {
+        "symbol": "^GDAXI",
+        "name": "DAX",
+        "country": "Germany",
+        "region": "Europe",
+        "last": 24671.22,
+        "change_pct": -1.29,
+        "as_of": "2026-06-26"
+      },
+      {
+        "symbol": "^FCHI",
+        "name": "CAC 40",
+        "country": "France",
+        "region": "Europe",
+        "last": 8384.87,
+        "change_pct": -0.55,
+        "as_of": "2026-06-26"
+      },
+      {
+        "symbol": "^FTSE",
+        "name": "FTSE 100",
+        "country": "UK",
+        "region": "Europe",
+        "last": 10508.02,
+        "change_pct": -0.21,
+        "as_of": "2026-06-26"
+      },
+      {
+        "symbol": "^STOXX50E",
+        "name": "Euro Stoxx 50",
+        "country": "Eurozone",
+        "region": "Europe",
+        "last": 6221.55,
+        "change_pct": -0.73,
+        "as_of": "2026-06-26"
+      }
+    ]
+  },
+  "macro": {
+    "economic_releases": [
+      {
+        "date": "2026-06-26",
+        "event": "FOMC Press Release",
+        "release_id": 101,
+        "days_away": 0
+      },
+      {
+        "date": "2026-07-02",
+        "event": "Employment Situation",
+        "release_id": 50,
+        "days_away": 6
+      }
+    ],
+    "earnings": [],
+    "market_session": {}
+  }
+}

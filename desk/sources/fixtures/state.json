@@ -1,0 +1,50 @@
+{
+  "ts": "2026-11-12T14:42:08-05:00",
+  "polling": true,
+  "tickers": {
+    "SPY": {
+      "ticker": "SPY", "session_date": "2026-11-12", "no_0dte": false,
+      "spot": 678.90, "prior_close": 677.68, "map_frozen": false,
+      "regime": {"state": "PIN"},
+      "five": {
+        "walls_above": [{"strike": 684.0, "dealer_gamma": 1.2e9, "observed_share": 0.71, "low_conf_share": 0.0}],
+        "walls_below": [{"strike": 675.0, "dealer_gamma": -9.0e8, "observed_share": 0.68, "low_conf_share": 0.0}],
+        "flip": {"strike": 681.0}, "max_pain": 680.0,
+        "expected_move": {"anchor_spot": 678.9, "band_085": [675.1, 682.7], "band_raw": [674.0, 683.8]}
+      },
+      "sources": {"massive": {"ok": true, "degraded": false, "asof": "2026-11-12T14:27:00-05:00", "delay_s": 900}},
+      "touches": [
+        {"id": 1, "strike": 684.0, "kind": "call wall", "entry_ts": "2026-11-12T11:48:00-05:00", "exit_ts": "2026-11-12T11:50:00-05:00", "price_outcome": "REJECTED", "flow": {}, "label": "DEFENDED"},
+        {"id": 2, "strike": 681.0, "kind": "zero gamma", "entry_ts": "2026-11-12T11:10:00-05:00", "exit_ts": "2026-11-12T11:12:00-05:00", "price_outcome": "REJECTED", "flow": {}, "label": "DEFENDED"}
+      ]
+    },
+    "QQQ": {
+      "ticker": "QQQ", "session_date": "2026-11-12", "no_0dte": false,
+      "spot": 601.40, "prior_close": 598.76, "map_frozen": false,
+      "regime": {"state": "TREND"},
+      "five": {
+        "walls_above": [{"strike": 609.0, "dealer_gamma": 8.0e8, "observed_share": 0.64, "low_conf_share": 0.0}],
+        "walls_below": [{"strike": 595.0, "dealer_gamma": -7.0e8, "observed_share": 0.60, "low_conf_share": 0.0}],
+        "flip": {"strike": 599.5},
+        "expected_move": {"anchor_spot": 601.4, "band_085": [597.8, 605.1]}
+      },
+      "sources": {"massive": {"ok": true, "degraded": false, "asof": "2026-11-12T14:27:00-05:00", "delay_s": 900}},
+      "touches": [
+        {"id": 3, "strike": 603.0, "kind": "call wall", "entry_ts": "2026-11-12T13:56:00-05:00", "exit_ts": "2026-11-12T13:58:00-05:00", "price_outcome": "BREACHED", "flow": {}, "label": "ATTACKED — BROKEN"}
+      ]
+    },
+    "IWM": {
+      "ticker": "IWM", "session_date": "2026-11-12", "no_0dte": false,
+      "spot": 244.60, "prior_close": 244.87, "map_frozen": false,
+      "regime": {"state": "TRANSITION"},
+      "five": {
+        "walls_above": [{"strike": 247.0, "dealer_gamma": 5.0e8, "observed_share": 0.48, "low_conf_share": 0.1}],
+        "walls_below": [{"strike": 244.0, "dealer_gamma": -4.0e8, "observed_share": 0.47, "low_conf_share": 0.1}],
+        "flip": {"strike": 245.5},
+        "expected_move": {"anchor_spot": 244.6, "band_085": [242.3, 246.9]}
+      },
+      "sources": {"massive": {"ok": true, "degraded": false, "asof": "2026-11-12T14:27:00-05:00", "delay_s": 900}},
+      "touches": []
+    }
+  }
+}

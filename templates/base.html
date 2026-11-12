@@ -9,7 +9,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-{% if s.mock %}<div class="mock-banner">Mockup · sample data · Phase 0 shell — not wired to live data</div>{% endif %}
+{% if s.mock %}<div class="mock-banner">Sample data · no upstream sources configured</div>{% endif %}
+{% if s.degraded %}<div class="degraded-banner">⚠ Degraded — showing last sample for:
+  {% for name, reason in s.degraded.items() %}<b>{{ name }}</b> ({{ reason }}){% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
 
 <div class="header">
   <div class="header-left">
