@@ -14,6 +14,11 @@
   </div>
 </div>
 
+<div class="subnav">
+  <a href="{{ url_for('flow') }}" class="active">Index ETFs</a>
+  <a href="{{ url_for('flow_all') }}">All Tickers</a>
+</div>
+
 <div class="section">
   <div class="section-header"><span class="sh-title">Fresh Flow Waves · last 15m</span>
     <span class="sh-meta">one-sided bursts — the headline read</span></div>
@@ -40,7 +45,7 @@
     <span class="sh-meta">full session · calls vs puts</span></div>
   <div class="section-body">
     {% for k in s.flow.session_skew %}
-    <div class="skew-row"><span class="sym">{{ k.sym }}</span>
+    <div class="skew-row"><span class="sym"><a class="tlink" href="{{ url_for('flow_ticker', sym=k.sym) }}">{{ k.sym }}</a></span>
       <span class="skew"><i class="c" style="width:{{ k.call_pct }}%"></i><i class="p" style="width:{{ 100 - k.call_pct }}%"></i></span>
       <span class="pct">{{ k.label }}</span></div>
     {% endfor %}
@@ -56,7 +61,7 @@
     <div class="eod-grid">
       {% for e in s.flow.eod %}
       <div class="eod-chip lean-{{ e.lean }}">
-        <div class="et">{{ e.sym }} <span class="badge {{ e.lean }}">{{ e.lean|capitalize }} lean</span></div>
+        <div class="et"><a class="tlink" href="{{ url_for('flow_ticker', sym=e.sym) }}">{{ e.sym }}</a> <span class="badge {{ e.lean }}">{{ e.lean|capitalize }} lean</span></div>
         <div class="skew"><i class="c" style="width:{{ e.call_pct }}%"></i><i class="p" style="width:{{ 100 - e.call_pct }}%"></i></div>
         <div class="ed">{{ e.detail }}</div>
       </div>

@@ -200,6 +200,28 @@ def snapshot() -> dict:
                 {"sym": "QQQ", "lean": "call", "call_pct": 66, "detail": "66% calls · $3.3M into 605–610 · exp Fri"},
                 {"sym": "IWM", "lean": "put", "call_pct": 39, "detail": "61% puts · $1.2M into 242–244 · exp Fri"},
             ],
+            "all": [
+                {"sym": "NVDA", "cp": "C", "cp_class": "call", "strike": "190", "expiry": "2026-11-14", "premium": "$3.2M", "vol": "12,400", "voi": "4.1", "side": "buy", "score": "88", "flags": ["whale", "unusual"], "is_new": True},
+                {"sym": "AMD", "cp": "C", "cp_class": "call", "strike": "175", "expiry": "2026-11-21", "premium": "$1.6M", "vol": "8,100", "voi": "2.8", "side": "buy", "score": "74", "flags": ["big"], "is_new": False},
+                {"sym": "TSLA", "cp": "P", "cp_class": "put", "strike": "390", "expiry": "2026-11-14", "premium": "$2.1M", "vol": "9,900", "voi": "3.3", "side": "buy", "score": "69", "flags": ["unusual"], "is_new": True},
+                {"sym": "META", "cp": "P", "cp_class": "put", "strike": "630", "expiry": "2026-11-21", "premium": "$1.2M", "vol": "5,400", "voi": "2.1", "side": "sell", "score": "61", "flags": ["new OI"], "is_new": False},
+                {"sym": "AAPL", "cp": "C", "cp_class": "call", "strike": "240", "expiry": "2026-12-19", "premium": "$900k", "vol": "6,200", "voi": "1.9", "side": "buy", "score": "55", "flags": [], "is_new": False},
+            ],
+            "sample_ticker": {
+                "sym": "NVDA", "underlying": "187.4", "as_of": "14:30", "call_pct": 68,
+                "lean": "call", "lean_class": "call", "call_vol": "142,000", "put_vol": "66,000", "premium": "$18.4M",
+                "by_expiry": [
+                    {"expiry": "2026-11-14", "call_vol": "60,000", "put_vol": "22,000", "call_pct": 73, "premium": "$7.1M", "top": "$190C"},
+                    {"expiry": "2026-11-21", "call_vol": "52,000", "put_vol": "28,000", "call_pct": 65, "premium": "$6.0M", "top": "$195C"},
+                    {"expiry": "2026-12-19", "call_vol": "30,000", "put_vol": "16,000", "call_pct": 65, "premium": "$5.3M", "top": "$200C"},
+                ],
+                "by_strike": [
+                    {"strike": "190", "call_vol": "48,000", "put_vol": "8,000", "call_pct": 86, "premium": "$5.2M"},
+                    {"strike": "195", "call_vol": "33,000", "put_vol": "7,000", "call_pct": 82, "premium": "$4.1M"},
+                    {"strike": "185", "call_vol": "18,000", "put_vol": "22,000", "call_pct": 45, "premium": "$3.0M"},
+                    {"strike": "200", "call_vol": "25,000", "put_vol": "6,000", "call_pct": 81, "premium": "$2.8M"},
+                ],
+            },
         },
 
         # ---- Structure recs ----

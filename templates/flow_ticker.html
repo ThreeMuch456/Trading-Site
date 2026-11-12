@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ sym }} Flow — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">03</span>{{ sym }} — Options Flow</h2>
+    <div class="sub">One name's call-vs-put picture: the overall lean, the term structure by expiry, and where
+      positioning clusters by strike.</div>
+  </div>
+  <div class="ph-r">
+    <span class="ph-meta">{% if tk %}spot {{ tk.underlying }} · as of {{ tk.as_of }}{% else %}no data{% endif %}</span>
+    <a href="#" class="src">Flow Scanner ↗</a>
+  </div>
+</div>
+
+<div class="subnav">
+  <a href="{{ url_for('flow') }}">Index ETFs</a>
+  <a href="{{ url_for('flow_all') }}">All Tickers</a>
+  <a href="{{ url_for('flow_ticker', sym=sym) }}" class="active">{{ sym }}</a>
+</div>
+
+{% if flow_note %}<div class="note" style="margin:0 0 12px; color:var(--amber);">{{ flow_note }}</div>{% endif %}
+
+{% if not tk %}
+<div class="section"><div class="section-body" style="color:var(--muted);padding:28px;">
+  No flow data for <b>{{ sym }}</b> in the current window.</div></div>
+{% else %}
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Headline Lean</span>
+    <span class="sh-meta">premium-weighted call vs put</span></div>
+  <div class="section-body">
+    <div class="skew-row" style="border:none;">
+      <span class="sym" style="min-width:64px;">{{ tk.sym }}</span>
+      <span class="skew" style="height:12px;"><i class="c" style="width:{{ tk.call_pct }}%"></i><i class="p" style="width:{{ 100 - tk.call_pct }}%"></i></span>
+      <span class="pct"><span class="badge {{ tk.lean_class }}">{{ tk.lean|capitalize }} lean</span></span>
+    </div>
+    <div class="perf-grid" style="margin-top:14px;">
+      <div class="perf"><div class="pl">Call volume</div><div class="pv up">{{ tk.call_vol }}</div></div>
+      <div class="perf"><div class="pl">Put volume</div><div class="pv down">{{ tk.put_vol }}</div></div>
+      <div class="perf"><div class="pl">Total premium</div><div class="pv">{{ tk.premium }}</div></div>
+      <div class="perf"><div class="pl">Call share</div><div class="pv">{{ tk.call_pct }}%</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="cols2">
+  <div class="section" style="margin:0;">
+    <div class="section-header"><span class="sh-title">By Expiry</span>
+      <span class="sh-meta">term structure</span></div>
+    <div class="section-body">
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th class="l">Expiry</th><th>Calls</th><th>Puts</th><th class="c">Skew</th><th>Premium</th><th class="l">Top</th></tr></thead>
+          <tbody>
+            {% for r in tk.by_expiry %}
+            <tr><td class="l">{{ r.expiry }}</td><td class="up">{{ r.call_vol }}</td><td class="down">{{ r.put_vol }}</td>
+              <td class="c"><span class="skew" style="width:70px;display:inline-flex;"><i class="c" style="width:{{ r.call_pct }}%"></i><i class="p" style="width:{{ 100 - r.call_pct }}%"></i></span></td>
+              <td>{{ r.premium }}</td><td class="l">{{ r.top }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="margin:0;">
+    <div class="section-header"><span class="sh-title">By Strike</span>
+      <span class="sh-meta">where positioning clusters</span></div>
+    <div class="section-body">
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th class="l">Strike</th><th>Calls</th><th>Puts</th><th class="c">Skew</th><th>Premium</th></tr></thead>
+          <tbody>
+            {% for r in tk.by_strike %}
+            <tr><td class="l">{{ r.strike }}</td><td class="up">{{ r.call_vol }}</td><td class="down">{{ r.put_vol }}</td>
+              <td class="c"><span class="skew" style="width:70px;display:inline-flex;"><i class="c" style="width:{{ r.call_pct }}%"></i><i class="p" style="width:{{ 100 - r.call_pct }}%"></i></span></td>
+              <td>{{ r.premium }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

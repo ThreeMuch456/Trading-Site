@@ -370,6 +370,15 @@ table.data .tk { font-weight:700; letter-spacing:0.04em; }
 .perf .pv { font-size:1.3em; font-weight:700; font-variant-numeric:tabular-nums; margin-top:3px; }
 .perf .ps { font-size:0.66em; color:var(--muted); margin-top:2px; }
 
+/* Flow sub-navigation + ticker drill links */
+.subnav { display:flex; gap:8px; margin:-4px 0 18px; flex-wrap:wrap; }
+.subnav a { font-size:0.72em; font-weight:600; letter-spacing:0.08em; text-transform:uppercase;
+  padding:6px 13px; border-radius:5px; border:1px solid var(--border); color:var(--muted); }
+.subnav a.active { background:var(--surface2); color:var(--text); border-color:var(--blue); }
+.subnav a:hover { color:var(--blue); text-decoration:none; }
+a.tlink { color:inherit; border-bottom:1px dashed var(--muted); font-weight:700; }
+a.tlink:hover { color:var(--blue); border-bottom-color:var(--blue); text-decoration:none; }
+
 /* Gameplan per-ticker calibration chip (recursive learning) */
 .calib { margin-top:9px; padding:6px 8px; border-radius:4px; font-size:0.68em; color:var(--muted);
   background:rgba(167,139,250,0.06); border-left:2px solid var(--purple); letter-spacing:0.02em; }

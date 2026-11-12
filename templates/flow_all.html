@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Flow · All Tickers — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">03</span>Flow — All Tickers</h2>
+    <div class="sub">Unusual options activity across the broader universe (index ETFs shown on their own
+      page) — large premium and volume-vs-open-interest spikes, ranked by significance.</div>
+  </div>
+  <div class="ph-r">
+    <span class="ph-meta">Massive · 15-min delayed</span>
+    <a href="#" class="src">Flow Scanner ↗</a>
+  </div>
+</div>
+
+<div class="subnav">
+  <a href="{{ url_for('flow') }}">Index ETFs</a>
+  <a href="{{ url_for('flow_all') }}" class="active">All Tickers</a>
+</div>
+
+{% if flow_note %}<div class="note" style="margin:0 0 12px; color:var(--amber);">{{ flow_note }}</div>{% endif %}
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Notable Flow</span>
+    <span class="sh-meta">{{ rows|length }} alerts · click a ticker to drill in</span></div>
+  <div class="section-body">
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th class="l">Ticker</th><th class="c">C/P</th><th>Strike</th><th class="l">Expiry</th>
+          <th>Premium</th><th>Volume</th><th>Vol/OI</th><th class="c">Side</th><th>Score</th><th class="l">Flags</th>
+        </tr></thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td class="l tk"><a class="tlink" href="{{ url_for('flow_ticker', sym=r.sym) }}">{{ r.sym }}</a>{% if r.is_new %} <span class="badge new">New</span>{% endif %}</td>
+            <td class="c"><span class="badge {{ r.cp_class }}">{{ r.cp }}</span></td>
+            <td>{{ r.strike }}</td><td class="l">{{ r.expiry }}</td>
+            <td>{{ r.premium }}</td><td>{{ r.vol }}</td><td>{{ r.voi }}</td>
+            <td class="c">{{ r.side }}</td><td>{{ r.score }}</td>
+            <td class="l">{% for f in r.flags %}<span class="badge" style="background:var(--surface2);color:var(--muted);margin-right:3px;">{{ f }}</span>{% endfor %}</td>
+          </tr>
+          {% endfor %}
+          {% if not rows %}<tr><td class="l" colspan="10" style="color:var(--muted);padding:24px;">No notable flow right now.</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      Vol/OI is the day's volume over open interest — a high ratio means fresh positioning, not an
+      existing book. Premium is the estimated notional. Significance score blends premium and the vol/OI
+      spike so the largest, most unusual entries rank first.
+    </div>
+  </div>
+</div>
+
+{% endblock %}

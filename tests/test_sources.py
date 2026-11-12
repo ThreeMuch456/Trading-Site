@@ -152,6 +152,22 @@ def test_flow_maps_waves_eod_and_skew():
     print("  flow: waves/session-skew/eod mapped, intraday skew + overview card merged")
 
 
+def test_flow_sweeps_and_ticker():
+    flow.http_get_json = lambda *a, **k: _load("sweeps.json")
+    rows = flow.fetch_sweeps(CFG, 2.0)
+    assert len(rows) == 2 and rows[0]["sym"] == "NVDA"
+    assert rows[0]["cp"] == "C" and rows[0]["premium"] == "$3.2M" and rows[0]["is_new"] is True
+    assert rows[1]["cp"] == "P" and rows[1]["voi"] == "3.3"
+
+    flow.http_get_json = lambda *a, **k: _load("ticker.json")
+    tk = flow.fetch_ticker(CFG, "NVDA", 2.0)
+    assert tk["sym"] == "NVDA" and tk["lean"] == "call" and tk["call_pct"] == 71   # premium-weighted
+    assert tk["call_vol"] == "142,000" and tk["premium"] == "$18.4M"
+    assert tk["by_expiry"][0]["expiry"] == "2026-11-14" and tk["by_expiry"][0]["call_pct"] == 73
+    assert tk["by_strike"][0]["strike"] == "190" and tk["by_strike"][0]["call_pct"] == 86
+    print("  flow drill: sweeps rows + per-ticker lean/expiry/strike mapped")
+
+
 def test_structure_maps_recs_rotation_quant():
     import urllib.parse as up
     from desk import config
@@ -223,7 +239,8 @@ def test_sample_mode_when_unconfigured():
 
 if __name__ == "__main__":
     for fn in (test_agent_maps_brief_and_risk, test_zerodte_maps_levels_and_touches,
-               test_flow_maps_waves_eod_and_skew, test_structure_maps_recs_rotation_quant,
+               test_flow_maps_waves_eod_and_skew, test_flow_sweeps_and_ticker,
+               test_structure_maps_recs_rotation_quant,
                test_store_logs_and_grades, test_app_token_gate,
                test_fetch_fails_soft, test_sample_mode_when_unconfigured):
         fn()

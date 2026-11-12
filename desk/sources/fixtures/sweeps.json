@@ -1,0 +1,10 @@
+[
+  {"id": 1, "ticker": "NVDA", "option_type": "call", "strike": 190, "expiry": "2026-11-14",
+   "volume": 12400, "volume_delta": 3900, "side": "buy", "open_interest": 3000, "vol_oi_ratio": 4.1,
+   "estimated_premium": 3200000, "underlying_price": 187.4, "implied_volatility": 0.45, "delta": 0.4,
+   "detected_at": "2026-11-12T14:20:00-05:00", "score": 88, "flags": ["WHALE", "UNUSUAL"], "hits": 3, "first_seen": "2026-11-12T13:00:00-05:00", "is_new": true},
+  {"id": 2, "ticker": "TSLA", "option_type": "put", "strike": 390, "expiry": "2026-11-14",
+   "volume": 9900, "volume_delta": 2100, "side": "buy", "open_interest": 3000, "vol_oi_ratio": 3.3,
+   "estimated_premium": 2100000, "underlying_price": 398.6, "implied_volatility": 0.55, "delta": -0.4,
+   "detected_at": "2026-11-12T13:40:00-05:00", "score": 69, "flags": ["UNUSUAL"], "hits": 2, "first_seen": "2026-11-12T13:10:00-05:00", "is_new": false}
+]

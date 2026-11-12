@@ -143,6 +143,71 @@ def _session_label(eod: dict) -> str:
     return f"0DTE / 1DTE · session of {escape(str(d))}" if d else "0DTE / 1DTE"
 
 
+def fetch_sweeps(cfg: dict, timeout: float) -> list:
+    """All-ticker unusual activity (/api/sweeps, index ETFs excluded) → the
+    'All Tickers' flow table."""
+    data = http_get_json(cfg["url"] + "/api/sweeps", cfg.get("token", ""),
+                         cfg.get("header", "Authorization"), timeout)
+    rows = []
+    for a in (data or [])[:50]:
+        call = _is_call(a.get("option_type"))
+        voi = a.get("vol_oi_ratio")
+        score = a.get("score")
+        rows.append({
+            "sym": a.get("ticker", "—"),
+            "cp": "C" if call else "P", "cp_class": "call" if call else "put",
+            "strike": _g(a.get("strike")), "expiry": escape(str(a.get("expiry", "—"))),
+            "premium": _usd(a.get("estimated_premium")), "vol": _n(a.get("volume")),
+            "voi": f"{voi:.1f}" if isinstance(voi, (int, float)) else "—",
+            "side": escape(str(a.get("side") or "—")),
+            "score": f"{score:.0f}" if isinstance(score, (int, float)) else "—",
+            "flags": [escape(str(f)) for f in (a.get("flags") or [])],
+            "is_new": bool(a.get("is_new")),
+        })
+    return rows
+
+
+def fetch_ticker(cfg: dict, sym: str, timeout: float) -> dict:
+    """One name's call-vs-put picture (/api/ticker/<sym>): overall lean, the
+    term structure (by expiry), and strike clustering."""
+    data = http_get_json(cfg["url"] + f"/api/ticker/{sym}", cfg.get("token", ""),
+                         cfg.get("header", "Authorization"), timeout)
+    tot = data.get("totals") or {}
+    cs = tot.get("call_share")
+    lean = tot.get("lean")
+
+    def _vrow(r: dict) -> dict:
+        c, p = r.get("call_volume") or 0, r.get("put_volume") or 0
+        t = c + p
+        return {"call_vol": _n(c), "put_vol": _n(p),
+                "call_pct": int(round(c / t * 100)) if t else 50,
+                "premium": _usd(r.get("premium"))}
+
+    by_expiry = []
+    for r in data.get("by_expiry", []) or []:
+        d = _vrow(r)
+        top = f"${_g(r.get('top_strike'))}{'C' if _is_call(r.get('top_type')) else 'P'}" if r.get("top_strike") else "—"
+        d.update(expiry=escape(str(r.get("expiry", "—"))), top=top)
+        by_expiry.append(d)
+    by_strike = []
+    for r in (data.get("by_strike") or [])[:15]:
+        d = _vrow(r)
+        d.update(strike=_g(r.get("strike")))
+        by_strike.append(d)
+
+    return {
+        "sym": data.get("ticker", sym),
+        "underlying": _g(data.get("underlying")),
+        "as_of": escape(str(data.get("as_of") or "")),
+        "call_pct": int(round(cs * 100)) if isinstance(cs, (int, float)) else 50,
+        "lean": lean or "balanced",
+        "lean_class": "call" if lean == "call" else ("put" if lean == "put" else "flat"),
+        "call_vol": _n(tot.get("call_volume")), "put_vol": _n(tot.get("put_volume")),
+        "premium": _usd(tot.get("premium")),
+        "by_expiry": by_expiry, "by_strike": by_strike,
+    }
+
+
 def _usd(x) -> str:
     if not isinstance(x, (int, float)) or x == 0:
         return "$0"

@@ -10,6 +10,7 @@ Run:   python app.py        # http://localhost:8000  (override with PORT)
 """
 
 import os
+import re
 from pathlib import Path
 
 from flask import Flask, render_template, request, g
@@ -92,6 +93,39 @@ def intraday():
 @app.route("/flow")
 def flow():
     return render_template("flow.html")
+
+
+@app.route("/flow/all")
+def flow_all():
+    """All-ticker unusual activity (not the index ETFs). Live when FLOW_URL is set,
+    else the sample rows — a fetch failure degrades to sample with a note."""
+    rows, note = _drilldown(lambda src, cfg, to: src.fetch_sweeps(cfg, to),
+                            fallback_key="all", fallback_default=[])
+    return render_template("flow_all.html", rows=rows, flow_note=note)
+
+
+@app.route("/flow/ticker/<sym>")
+def flow_ticker(sym):
+    sym = re.sub(r"[^A-Za-z0-9.\-]", "", sym).upper()[:10] or "SPY"
+    data, note = _drilldown(lambda src, cfg, to: src.fetch_ticker(cfg, sym, to),
+                            fallback_key="sample_ticker", fallback_default=None)
+    if data and note:                       # sample fallback — label it with the asked symbol
+        data = {**data, "sym": sym}
+    return render_template("flow_ticker.html", tk=data, sym=sym, flow_note=note)
+
+
+def _drilldown(call, fallback_key, fallback_default):
+    """Run a live flow fetch when the source is configured; on absence or failure
+    fall back to the sample snapshot's value. Returns (data, note)."""
+    from desk import config
+    from desk.sources import flow as flow_src
+    if config.enabled("flow"):
+        try:
+            return call(flow_src, config.SOURCES["flow"], config.FETCH_TIMEOUT), None
+        except Exception as exc:
+            note = f"flow ({type(exc).__name__}) — showing sample"
+            return (get_snapshot().get("flow", {}) or {}).get(fallback_key, fallback_default), note
+    return (get_snapshot().get("flow", {}) or {}).get(fallback_key, fallback_default), None
 
 
 @app.route("/structure")
