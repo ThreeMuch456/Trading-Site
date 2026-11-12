@@ -55,11 +55,17 @@
       {% endfor %}
     </div>
     <div class="note">
-      Grading and the track record come from the Morning Brief's learning loop — each day's bias is scored
-      open→close and fed back into tomorrow's synthesis to temper conviction where a condition
-      (ticker · bias · gamma regime) has a weak history. Structure and 0DTE touch records live in their own
-      tools, deep-linked.
+      Grading feeds the learning loop — each day's bias is scored open→close and fed back into tomorrow's
+      synthesis to temper conviction where a condition (ticker · bias · gamma regime) has a weak history.
     </div>
+    {% if s.eod.track_record and s.eod.track_record.lines %}
+    <div class="track">
+      <div class="track-h">◆ Track Record — synthesized learning</div>
+      {% for it in s.eod.track_record.lines %}
+      <div class="track-row"><span class="track-src">{{ it.src }}</span><span class="track-txt">{{ it.text }}</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 </div>
 

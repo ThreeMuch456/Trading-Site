@@ -21,8 +21,13 @@ except Exception:
     pass
 
 from desk.fetch import get_snapshot
+from desk.schedule import start as start_scheduler
 
 app = Flask(__name__)
+
+# Optional cadence refresh (DESK_SCHEDULER=1). No-op otherwise. Started at import
+# so it runs under gunicorn too; keep the service at one worker when enabled.
+_scheduler = start_scheduler()
 
 SITE_NAME = os.environ.get("SITE_NAME", "Trading Desk")
 

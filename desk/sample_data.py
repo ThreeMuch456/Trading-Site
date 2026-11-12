@@ -272,6 +272,12 @@ def snapshot() -> dict:
                 {"time": "13:00", "imp": "Low", "imp_class": "low", "text": "Baker Hughes Rig Count"},
                 {"time": "—", "imp": "Med", "imp_class": "med", "text": "Fri OPEX — elevated pin risk at walls"},
             ],
+            "track_record": {"lines": [
+                {"src": "Morning Brief", "text": "Gameplan bias 142/245 (58%) over recent sessions · Brier 0.21"},
+                {"src": "Morning Brief", "text": "beats the always-bullish baseline (54%)"},
+                {"src": "Structure", "text": "resistance setups win 61% at the 5-day horizon"},
+                {"src": "Desk", "text": "Desk journal: 1 session logged"},
+            ]},
             "risk_next": "Mixed · event-gated",
             "risk_note": (
                 "CPI at 08:30 dominates — the call lean is the base case, but a hot core print voids it and the "

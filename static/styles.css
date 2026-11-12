@@ -370,6 +370,19 @@ table.data .tk { font-weight:700; letter-spacing:0.04em; }
 .perf .pv { font-size:1.3em; font-weight:700; font-variant-numeric:tabular-nums; margin-top:3px; }
 .perf .ps { font-size:0.66em; color:var(--muted); margin-top:2px; }
 
+/* EOD synthesized Track Record (recursive learning) */
+.track { margin-top:14px; padding:12px 14px; border:1px solid var(--border); border-radius:6px;
+  background:linear-gradient(90deg, rgba(167,139,250,0.06), var(--surface2)); }
+.track-h { font-size:0.62em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--purple); margin-bottom:9px; }
+.track-row { display:flex; gap:10px; align-items:baseline; padding:6px 0; font-size:0.8em;
+  border-bottom:1px solid #16203250; }
+.track-row:last-child { border-bottom:none; }
+.track-src { font-size:0.54rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--muted); border:1px solid var(--border); border-radius:3px; padding:2px 7px;
+  white-space:nowrap; min-width:94px; text-align:center; flex-shrink:0; }
+.track-txt { color:var(--text); }
+
 /* degraded banner */
 .degraded-banner { background:var(--red-dim); color:#ffd7de; text-align:center;
   font-size:0.68em; font-weight:600; letter-spacing:0.04em; padding:5px 16px;

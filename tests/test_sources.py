@@ -25,7 +25,11 @@ CFG = {"url": "http://upstream", "token": "", "header": "Authorization"}
 
 
 def test_agent_maps_brief_and_risk():
-    agent.http_get_json = lambda *a, **k: _load("brief.json")
+    brief, perf = _load("brief.json"), _load("performance.json")
+
+    def dispatch(url, *a, **k):
+        return perf if url.endswith("/api/performance.json") else brief
+    agent.http_get_json = dispatch
     c = agent.collect(CFG, 2.0)
 
     assert c["risk_rating"] == "High" and c["risk_class"] == "off"   # overall_risk_rating: high
@@ -38,11 +42,34 @@ def test_agent_maps_brief_and_risk():
     # This captured session predates the conviction field — must degrade, not crash.
     assert spy["conviction"] == "—" and spy["conviction_pct"] == 0
 
+    # EOD grading + synthesized track record (the learning loop).
+    grades = {g["sym"]: g for g in c["eod"]["grades"]}
+    assert grades["SPY"]["correct"] == "Yes" and grades["IWM"]["correct"] == "No"
+    assert any(t["label"] == "Brier" and t["value"] == "0.21" for t in c["eod"]["performance"])
+    assert c["track_record"]["lines"] and "Gameplan bias" in c["track_record"]["lines"][0]["text"]
+
     s = sample_data.snapshot()
     agent.merge(s, c)
     assert s["context"]["risk_rating"] == "High"
     assert any(t["sym"] == "SPY" and t["bias"] == spy["bias"] for t in s["tickers"])
-    print("  agent: risk=High, globals+watch mapped, missing-conviction handled, merge OK")
+    assert s["eod"]["grades"][0]["correct"] in ("Yes", "No")
+    assert s["eod"]["track_record"]["lines"]
+    print("  agent: brief+risk, EOD grades+Brier, track record, merge OK")
+
+
+def test_store_logs_and_grades(tmp=None):
+    import tempfile
+    from desk import store
+    store.DB_PATH = tempfile.mktemp(suffix=".sqlite3")
+    s = sample_data.snapshot()
+    store.record_snapshot(s)
+    store.ingest_grades(s["eod"]["grades"])          # sample: Yes/Yes/No
+    summary = store.summary()
+    assert summary["sessions"] == 1 and summary["graded"] == 3 and summary["correct"] == 2
+    items = store.track_record_items()
+    assert any("Desk journal" in it["text"] for it in items)
+    assert any("hit-rate 2/3" in it["text"] for it in items)
+    print("  store: snapshot logged, grades ingested, desk track-record items OK")
 
 
 def test_zerodte_maps_levels_and_touches():
@@ -180,6 +207,7 @@ def test_sample_mode_when_unconfigured():
 if __name__ == "__main__":
     for fn in (test_agent_maps_brief_and_risk, test_zerodte_maps_levels_and_touches,
                test_flow_maps_waves_eod_and_skew, test_structure_maps_recs_rotation_quant,
+               test_store_logs_and_grades,
                test_fetch_fails_soft, test_sample_mode_when_unconfigured):
         fn()
     print("ALL PASS")

@@ -54,8 +54,25 @@ def get_snapshot(force: bool = False) -> dict:
             degraded[name] = f"merge error: {type(exc).__name__}: {exc}"
 
     s["degraded"] = degraded
+    _record_learning(s, degraded)
     _store(s, now)
     return s
+
+
+def _record_learning(s: dict, degraded: dict) -> None:
+    """Log the live composed signals to the desk journal, ingest any graded
+    outcomes (only when the brief source was live), and append the desk's own
+    Track Record items. Fully guarded — learning never breaks a page."""
+    try:
+        from . import store
+        store.record_snapshot(s)
+        grades = (s.get("eod") or {}).get("grades")
+        if grades and "agent" not in degraded:
+            store.ingest_grades(grades)
+        tr = s.setdefault("eod", {}).setdefault("track_record", {"lines": []})
+        tr["lines"] = list(tr.get("lines") or []) + store.track_record_items()
+    except Exception:
+        pass
 
 
 def _collect(name: str):
