@@ -251,9 +251,14 @@ def synthesize(market_data: dict, macro_data: dict, options_data: dict,
         raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
 
     client = anthropic.Anthropic(api_key=api_key)
+    # Claude 5 models think by default (adaptive), and thinking tokens count against
+    # max_tokens — at 4096 the reasoning consumed the whole budget and left no text
+    # block (empty response → JSON parse error). 16000 leaves ample room for the
+    # thinking plus the ~1-2k gameplan JSON; the response parser below pulls the text
+    # block out regardless of a leading thinking block.
     message = client.messages.create(
         model=MODEL,
-        max_tokens=4096,
+        max_tokens=int(os.getenv("BRIEF_MAX_TOKENS", "16000")),
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_user_message(market_data, macro_data, options_data)}],
     )
