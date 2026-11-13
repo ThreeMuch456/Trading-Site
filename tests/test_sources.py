@@ -168,6 +168,22 @@ def test_flow_maps_waves_eod_and_skew():
     assert eod["SPY"]["lean"] == "call" and eod["IWM"]["lean"] == "put"
     assert "$4.1M" in eod["SPY"]["detail"]
 
+    # Ranked index-ETF entries (standalone-parity cards), ordered by score.
+    ranked = c["flow"]["ranked"]
+    assert len(ranked) == 6 and ranked[0]["sym"] == "QQQ" and ranked[0]["cp"] == "C"
+    top = ranked[0]
+    assert top["score"] == 88 and top["strike"] == "604" and top["premium"] == "$1.2M"
+    assert top["voi"] == "9.8×" and top["iv"] == "16%" and top["delta"] == "+0.41"
+    assert top["underlying"] == "$601.40" and top["fresh"] == "+1,500"
+    assert top["reflagged"] == "3× since 11:41 ET" and top["is_new"] is True
+    assert "WHALE" in top["flags"] and top["score_color"] == "var(--green)"
+
+    # Raw call vs put volume rollup (replaces the skew-only summary on the page).
+    roll = {d["sym"]: d for d in c["flow"]["rollup"]}
+    assert roll["SPY"]["call_vol"] == "5,700" and roll["SPY"]["put_vol"] == "4,300"
+    assert roll["SPY"]["call_pct"] == 57 and roll["SPY"]["contracts"] == 2
+    assert roll["SPY"]["fresh"] == "+900C / +0P" and roll["QQQ"]["call_pct"] == 68
+
     s = sample_data.snapshot()
     flow.merge(s, c)
     assert s["flow"]["waves"][0]["sym"] == "QQQ"

@@ -31,6 +31,13 @@ def collect(cfg: dict, timeout: float) -> dict:
     eod_chips = [_eod_chip(e) for e in (eod.get("tickers") or [])]
     label = _session_label(eod)
 
+    # Full index-ETF parity with the standalone page: the ranked individual entries
+    # (the #1/#2… cards) and the raw call-vs-put volume rollup, both computed from
+    # the same /api/index-etfs alert list the skew already aggregates.
+    ranked = [_entry(a) for a in
+              sorted(alerts, key=lambda x: (x.get("score") or 0), reverse=True)][:25]
+    rollup = _rollup(alerts, order)
+
     surge_count = len(wave_banners)
     fresh_premium = sum(w.get("premium") or 0 for w in waves if w.get("is_surge"))
     call_leans = sum(1 for e in (eod.get("tickers") or []) if e.get("direction") == "call")
@@ -38,7 +45,8 @@ def collect(cfg: dict, timeout: float) -> dict:
 
     return {
         "flow": {"session_label": label, "waves": wave_banners,
-                 "session_skew": session_skew, "eod": eod_chips},
+                 "session_skew": session_skew, "rollup": rollup,
+                 "ranked": ranked, "eod": eod_chips},
         "intraday_skew": intraday_skew,
         "card": {"surge_count": surge_count, "fresh_premium": _usd(fresh_premium),
                  "eod_lean": f"Calls {call_leans}/{eod_total}" if eod_total else "—"},
@@ -66,6 +74,82 @@ def merge(s: dict, c: dict) -> None:
 
 def _is_call(ot) -> bool:
     return str(ot).lower() in ("call", "c")
+
+
+def _hhmm(iso) -> str:
+    if not iso or not isinstance(iso, str):
+        return ""
+    try:
+        return datetime.fromisoformat(iso).strftime("%H:%M")
+    except ValueError:
+        return ""
+
+
+def _entry(a: dict) -> dict:
+    """One ranked index-ETF flow entry → a card row (mirrors the standalone's
+    _sweep_card). `ask`/`Px @ flag` is not in the /api/index-etfs contract, so it
+    is omitted; every other field maps straight across."""
+    call = _is_call(a.get("option_type"))
+    try:
+        score = max(0, min(100, int(round(float(a.get("score") or 0)))))
+    except (TypeError, ValueError):
+        score = 0
+    voi, iv, dl = a.get("vol_oi_ratio"), a.get("implied_volatility"), a.get("delta")
+    und = a.get("underlying_price")
+    hits = a.get("hits") or 1
+    return {
+        "sym": a.get("ticker", "—"),
+        "cp": "C" if call else "P", "cp_class": "call" if call else "put",
+        "strike": _g(a.get("strike")), "expiry": escape(str(a.get("expiry", "—"))),
+        "premium": _usd(a.get("estimated_premium")),
+        "score": score,
+        "score_color": "var(--green)" if score >= 70 else ("var(--amber)" if score >= 45 else "var(--blue)"),
+        "flags": [escape(str(f)) for f in (a.get("flags") or [])],
+        "is_new": bool(a.get("is_new")),
+        "voi": f"{voi:.1f}×" if isinstance(voi, (int, float)) else "—",
+        "vol": _n(a.get("volume")),
+        "fresh": f"+{_n(a.get('volume_delta'))}" if a.get("volume_delta") else None,
+        "oi": _n(a.get("open_interest")) if a.get("open_interest") else "—",
+        "iv": f"{iv * 100:.0f}%" if isinstance(iv, (int, float)) else "—",
+        "delta": f"{dl:+.2f}" if isinstance(dl, (int, float)) else "—",
+        "underlying": f"${und:.2f}" if isinstance(und, (int, float)) else "—",
+        "reflagged": f"{hits}× since {_hhmm(a.get('first_seen'))} ET" if (hits and hits > 1) else None,
+        "time": _hhmm(a.get("detected_at")),
+    }
+
+
+def _rollup(alerts: list, order: list) -> list:
+    """Per-ticker raw call vs put volume across the notable entries this session,
+    plus the fresh (15m) call/put delta — the standalone's 'Ticker Rollup'."""
+    agg: dict = {}
+    for a in alerts:
+        t = a.get("ticker")
+        if t is None:
+            continue
+        d = agg.setdefault(t, {"c": 0, "p": 0, "cd": 0, "pd": 0, "n": 0})
+        vol, dl = a.get("volume") or 0, a.get("volume_delta") or 0
+        if _is_call(a.get("option_type")):
+            d["c"] += vol
+            d["cd"] += dl
+        else:
+            d["p"] += vol
+            d["pd"] += dl
+        d["n"] += 1
+    out = []
+    for sym in order:
+        d = agg.get(sym)
+        if not d:
+            out.append({"sym": sym, "call_vol": "0", "put_vol": "0",
+                        "call_pct": 50, "contracts": 0, "fresh": None})
+            continue
+        tot = d["c"] + d["p"]
+        cp = int(round(d["c"] / tot * 100)) if tot else 50
+        out.append({
+            "sym": sym, "call_vol": _n(d["c"]), "put_vol": _n(d["p"]),
+            "call_pct": cp, "contracts": d["n"],
+            "fresh": f"+{_n(d['cd'])}C / +{_n(d['pd'])}P" if (d["cd"] + d["pd"]) else None,
+        })
+    return out
 
 
 def _wave(w: dict) -> dict:

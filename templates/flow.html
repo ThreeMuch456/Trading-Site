@@ -41,18 +41,6 @@
 </div>
 
 <div class="section">
-  <div class="section-header"><span class="sh-title">Session Skew by Ticker</span>
-    <span class="sh-meta">full session · calls vs puts</span></div>
-  <div class="section-body">
-    {% for k in s.flow.session_skew %}
-    <div class="skew-row"><span class="sym"><a class="tlink" href="{{ url_for('flow_ticker', sym=k.sym) }}">{{ k.sym }}</a></span>
-      <span class="skew"><i class="c" style="width:{{ k.call_pct }}%"></i><i class="p" style="width:{{ 100 - k.call_pct }}%"></i></span>
-      <span class="pct">{{ k.label }}</span></div>
-    {% endfor %}
-  </div>
-</div>
-
-<div class="section">
   <div class="section-header">
     <span class="sh-title"><span class="badge eod" style="margin-right:8px;">EOD</span> Late-Day Positioning</span>
     <span class="sh-meta">read on tomorrow · contracts outliving the session</span>
@@ -72,6 +60,73 @@
       the read on the session about to start. SPY and QQQ close call-leaning into Friday's expiry; IWM stays
       put-heavy, the same divergence seen in intraday. These strike buckets become tomorrow's magnets.
     </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Ticker Rollup · Call vs Put Volume</span>
+    <span class="sh-meta">this session · across the notable entries</span></div>
+  <div class="section-body">
+    <div class="eod-grid">
+      {% for r in s.flow.rollup %}
+      <div class="eod-chip">
+        <div class="et"><a class="tlink" href="{{ url_for('flow_ticker', sym=r.sym) }}">{{ r.sym }}</a></div>
+        <div style="display:flex; gap:14px; margin:6px 0 4px;">
+          <span class="num" style="color:var(--green)">{{ r.call_vol }} C</span>
+          <span class="num" style="color:var(--red)">{{ r.put_vol }} P</span>
+        </div>
+        <div class="skew"><i class="c" style="width:{{ r.call_pct }}%"></i><i class="p" style="width:{{ 100 - r.call_pct }}%"></i></div>
+        <div class="ed">{{ r.call_pct }}% calls · {{ r.contracts }} contract{{ 's' if r.contracts != 1 }}{% if r.fresh %}
+          · <span style="color:var(--muted)">15m {{ r.fresh }}</span>{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="note">
+      Cumulative day volume across the notable index-ETF entries this session; the 15m line is fresh flow only.
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">Notable Index-ETF Flow</span>
+    <span class="sh-meta">{{ s.flow.ranked|length }} entr{{ 'y' if s.flow.ranked|length == 1 else 'ies' }} · ranked by significance</span></div>
+  <div class="section-body">
+    {% for it in s.flow.ranked %}
+    <div class="sweep-card" style="border:1px solid var(--surface2); border-radius:8px; padding:12px 14px; margin-bottom:10px;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span class="num" style="color:var(--muted); font-weight:600;">#{{ loop.index }}</span>
+          <a class="tlink" href="{{ url_for('flow_ticker', sym=it.sym) }}" style="font-weight:700; font-size:1.15em; letter-spacing:.04em;">{{ it.sym }}</a>
+          <span class="badge {{ it.cp_class }}">{{ it.cp }}</span>
+          <span class="num" style="color:var(--text);">${{ it.strike }}</span>
+          <span style="color:var(--muted); font-size:.85em;">exp {{ it.expiry }}</span>
+          {% for f in it.flags %}<span class="badge" style="background:var(--surface2); color:var(--muted); margin-right:2px;">{{ f }}</span>{% endfor %}
+          {% if it.is_new %}<span class="badge new">New</span>{% endif %}
+        </div>
+        <div style="text-align:right;">
+          <div class="num" style="font-size:1.25em; font-weight:700; color:var(--text);">{{ it.premium }}</div>
+          <div style="font-size:.65em; color:var(--muted); letter-spacing:.12em; text-transform:uppercase;">premium</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+        <span style="font-size:.65em; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; min-width:58px;">Signal</span>
+        <div class="score-track"><div class="score-fill" style="width:{{ it.score }}%; background:{{ it.score_color }};"></div></div>
+        <span class="num" style="color:{{ it.score_color }};">{{ it.score }}</span>
+      </div>
+      <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:10px; font-size:.82em; color:var(--muted);">
+        <span>Vol/OI <span class="num" style="color:var(--text);">{{ it.voi }}</span></span>
+        <span>Volume <span class="num" style="color:var(--text);">{{ it.vol }}</span></span>
+        {% if it.fresh %}<span>Fresh <span class="num" style="color:var(--text);">{{ it.fresh }}</span></span>{% endif %}
+        <span>OI <span class="num" style="color:var(--text);">{{ it.oi }}</span></span>
+        <span>IV <span class="num" style="color:var(--text);">{{ it.iv }}</span></span>
+        <span>Delta <span class="num" style="color:var(--text);">{{ it.delta }}</span></span>
+        <span>Underlying <span class="num" style="color:var(--text);">{{ it.underlying }}</span></span>
+        {% if it.reflagged %}<span>Re-flagged <span class="num" style="color:var(--amber);">{{ it.reflagged }}</span></span>{% endif %}
+        {% if it.time %}<span style="margin-left:auto;">{{ it.time }} ET</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if not s.flow.ranked %}<div class="note" style="color:var(--muted);">No notable index-ETF flow this session yet — the scanner populates this during market hours (≈15 min after the open on delayed data).</div>{% endif %}
   </div>
 </div>
 
