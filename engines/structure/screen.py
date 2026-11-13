@@ -286,7 +286,7 @@ def screen_universe(
     feed = feed or DataFeed(cfg)
     results: list[Result] = []
 
-    for ticker in tqdm(tickers, desc="screening", unit="ticker"):
+    for ticker in tqdm(tickers, desc="screening", unit="ticker", disable=None):
         try:
             bars    = feed.get_bars(ticker, force_refresh=force_refresh)
             profile = build_profile(ticker, bars, cfg)

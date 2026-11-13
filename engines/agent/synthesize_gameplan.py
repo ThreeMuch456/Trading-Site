@@ -12,7 +12,7 @@ from datetime import date
 
 import anthropic
 
-MODEL = "claude-sonnet-4-6"
+MODEL = os.getenv("BRIEF_MODEL", "claude-sonnet-5-5")
 
 SYSTEM_PROMPT = """\
 You are a seasoned equities trader specializing in SPY, QQQ, and IWM. \

@@ -214,7 +214,7 @@ def _filter_universe(tickers: list[str], cfg: Config) -> list[str]:
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {pool.submit(_filter_one, t, cfg): t for t in tickers}
-        for fut in tqdm(as_completed(futures), total=len(futures), desc="filtering"):
+        for fut in tqdm(as_completed(futures), total=len(futures), desc="filtering", disable=None):
             ticker = futures[fut]
             try:
                 if fut.result():
