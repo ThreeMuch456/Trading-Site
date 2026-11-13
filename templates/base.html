@@ -43,18 +43,38 @@
 
 <script>
   (function () {
+    // Live ET clock (was a frozen mockup time seeded to 14:42) + countdown to the
+    // 16:00 ET close, computed in the America/New_York zone regardless of the
+    // viewer's own timezone.
     var el = document.getElementById('clock');
-    if (!el) return;
-    var base = new Date(); base.setHours(14, 42, 8, 0);
-    var closeMs = new Date(base).setHours(16, 0, 0, 0);
     function pad(n){ return String(n).padStart(2, '0'); }
-    setInterval(function () {
-      base = new Date(base.getTime() + 1000);
-      var rem = Math.max(0, closeMs - base.getTime());
-      var h = Math.floor(rem / 3600000), m = Math.floor((rem % 3600000) / 60000);
-      el.textContent = pad(base.getHours()) + ':' + pad(base.getMinutes()) + ':' + pad(base.getSeconds()) +
-        ' ET · close in ' + h + 'h ' + pad(m) + 'm';
-    }, 1000);
+    function etParts(){
+      var p = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', hour12: false,
+        hour: '2-digit', minute: '2-digit', second: '2-digit'})
+        .formatToParts(new Date())
+        .reduce(function (a, x){ a[x.type] = x.value; return a; }, {});
+      return {h: +p.hour % 24, m: +p.minute, s: +p.second};
+    }
+    function tick(){
+      if (!el) return;
+      var t = etParts();
+      var remTotal = Math.max(0, (16*3600) - (t.h*3600 + t.m*60 + t.s));
+      var label = remTotal > 0
+        ? ' ET · close in ' + Math.floor(remTotal/3600) + 'h ' + pad(Math.floor((remTotal%3600)/60)) + 'm'
+        : ' ET · closed';
+      el.textContent = pad(t.h) + ':' + pad(t.m) + ':' + pad(t.s) + label;
+    }
+    tick();
+    setInterval(tick, 1000);
+
+    // Visibility-aware page auto-refresh so live pages (ETF flow, levels, …) pick up
+    // new data on the desk's compose cadence without a manual reload — mirrors the
+    // standalone tools. Only reloads while the tab is actually visible, and at the
+    // composed-snapshot TTL (reloading faster just re-renders the same cached data).
+    var REFRESH_MS = 60000;
+    setInterval(function (){
+      if (document.visibilityState === 'visible') window.location.reload();
+    }, REFRESH_MS);
   })();
 </script>
 {% block scripts %}{% endblock %}
