@@ -9,7 +9,7 @@ No upstream URLs configured → sample mode (identical to Phase 0).
 """
 
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 from . import config
 from . import sample_data
@@ -30,17 +30,24 @@ def get_snapshot(force: bool = False) -> dict:
 
     if not config.any_live():
         s["mock"], s["live"], s["degraded"] = True, False, {}
+        _derive_overview_cards(s)
         _store(s, now)
         return s
 
     s["mock"], s["live"] = False, True
     active = {name: mod for name, mod in _SOURCES.items() if config.enabled(name)}
 
+    # Overall per-source deadline so one hung upstream can't block the page. The
+    # structure source fans out to several quant calls, so give some headroom.
+    deadline = max(config.FETCH_TIMEOUT * 4, 15)
     results = {}
     with ThreadPoolExecutor(max_workers=max(1, len(active))) as ex:
         futures = {name: ex.submit(_collect, name) for name in active}
         for name, fut in futures.items():
-            results[name] = fut.result()
+            try:
+                results[name] = fut.result(timeout=deadline)
+            except FutureTimeout:
+                results[name] = (False, "timeout (source too slow)")
 
     degraded = {}
     for name, mod in active.items():

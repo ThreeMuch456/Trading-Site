@@ -77,7 +77,8 @@ def _server_error(_e):
 @app.after_request
 def _persist_token(resp):
     if getattr(g, "set_desk_cookie", False):
-        resp.set_cookie("desk_token", os.environ.get("APP_TOKEN", ""), httponly=True, samesite="Lax")
+        resp.set_cookie("desk_token", os.environ.get("APP_TOKEN", ""),
+                        httponly=True, samesite="Lax", secure=request.is_secure)
     return resp
 
 

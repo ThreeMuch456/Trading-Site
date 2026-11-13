@@ -13,7 +13,8 @@ missing just leaves that column blank — the table always renders from recs.jso
 
 from . import http_get_json
 
-STRUCT_QUANT_MAX = 8   # cap per-ticker quant calls (each one is a heavy upstream request)
+STRUCT_QUANT_MAX = 6      # cap per-ticker quant calls (each is a heavy upstream request)
+STRUCT_QUANT_TIMEOUT = 2.5  # tighter per-call budget so the fan-out stays within the fetch deadline
 
 _ROT_LABEL = {"leading": "Leading", "improving": "Improving",
               "weakening": "Weakening", "lagging": "Lagging", "neutral": "Neutral"}
@@ -119,13 +120,14 @@ def _quant_map(recs: list, scfg: dict, timeout: float) -> dict:
     quant = {}
     if not scfg.get("url"):
         return quant
+    qt = min(timeout, STRUCT_QUANT_TIMEOUT)
     for r in recs[:STRUCT_QUANT_MAX]:
         sym = r.get("ticker")
         if not sym:
             continue
         try:
             d = http_get_json(f"{scfg['url']}/api/analyze?ticker={sym}&ai=0",
-                              scfg.get("token", ""), scfg.get("header", "Authorization"), timeout)
+                              scfg.get("token", ""), scfg.get("header", "Authorization"), qt)
             sc = (d.get("scorecard") or {}).get("overall")
             if isinstance(sc, (int, float)):
                 quant[sym] = int(sc)
