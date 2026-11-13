@@ -258,7 +258,13 @@ def synthesize(market_data: dict, macro_data: dict, options_data: dict,
         messages=[{"role": "user", "content": build_user_message(market_data, macro_data, options_data)}],
     )
 
-    raw = message.content[0].text.strip()
+    # Concatenate the text blocks. Claude 5 models can emit a ThinkingBlock first,
+    # so message.content[0] is not necessarily the text answer (content[0].text
+    # then raises). Take every text block; fall back to any block exposing .text.
+    raw = "".join(getattr(b, "text", "") for b in message.content
+                  if getattr(b, "type", None) == "text").strip()
+    if not raw:
+        raw = "".join(getattr(b, "text", "") for b in message.content).strip()
 
     # Strip markdown code fences if model wraps the JSON
     if raw.startswith("```"):
