@@ -31,14 +31,22 @@ def collect(cfg: dict, timeout: float) -> dict:
     rows = [_row(r, quad, quant) for r in recs]
     top = max((r.get("combined_score") or 0 for r in recs), default=0)
     firing = sum(1 for row in rows if row["live"] == "Firing")
+    learning = _learning(cfg, timeout)
     return {"recs": rows, "as_of": payload.get("as_of"),
-            "card": {"passing": len(rows), "top": f"{top:.2f}", "firing": firing}}
+            "card": {"passing": len(rows), "top": f"{top:.2f}", "firing": firing},
+            "learning": learning["summary"], "track_line": learning["track_line"]}
 
 
 def merge(s: dict, c: dict) -> None:
     s["structure"]["recs"] = c["recs"]
     if c.get("as_of"):
         s["structure"]["as_of"] = f"Profiles {c['as_of']}"
+    if c.get("learning"):
+        s["structure"]["learning"] = c["learning"]
+    tl = c.get("track_line")
+    if tl:
+        tr = s.setdefault("eod", {}).setdefault("track_record", {"lines": []})
+        tr["lines"] = list(tr.get("lines") or []) + [tl]
     for card in s.get("overview_cards", []):
         if card.get("href") != "structure":
             continue
@@ -49,6 +57,42 @@ def merge(s: dict, c: dict) -> None:
                 st["v"] = c["card"]["top"]
             elif st.get("l") == "Firing live":
                 st["v"] = str(c["card"]["firing"])
+
+
+# ---- learning (recursive) ----
+
+def _learning(cfg: dict, timeout: float) -> dict:
+    """Structure's own self-calibration: win-rate by setup type at the shortest
+    horizon, plus a Track Record line. Best-effort — a miss returns no learning."""
+    none = {"summary": None, "track_line": None}
+    try:
+        d = http_get_json(cfg["url"] + "/api/learning.json", cfg.get("token", ""),
+                          cfg.get("header", "Authorization"), timeout)
+    except Exception:
+        return none
+    if not d.get("available"):
+        return none
+    groups = d.get("groups") or []
+    n_out = d.get("n_outcomes") or 0
+    min_s = d.get("min_samples") or 50
+    if not groups:
+        return {"summary": {"horizon": None, "rows": [], "n_outcomes": n_out},
+                "track_line": {"src": "Structure", "text": f"learning: {n_out} outcomes logged (building history)"}}
+    h = sorted({g["horizon"] for g in groups if g.get("horizon") is not None})[0]
+    rows = []
+    for g in groups:
+        if g.get("horizon") != h:
+            continue
+        wp, n = g.get("win_pct"), g.get("n") or 0
+        rows.append({"type": str(g.get("type") or "").capitalize(),
+                     "win_pct": f"{wp:.0f}%" if isinstance(wp, (int, float)) else "—",
+                     "n": n, "enough": n >= min_s})
+    best = max((r for r in rows if r["enough"]), key=lambda r: r["n"], default=None)
+    if best:
+        tl = {"src": "Structure", "text": f"{best['type'].lower()} setups win {best['win_pct']} at the {h}d horizon (n={best['n']})"}
+    else:
+        tl = {"src": "Structure", "text": f"learning: {n_out} outcomes logged (need {min_s}/group)"}
+    return {"summary": {"horizon": h, "rows": rows, "n_outcomes": n_out}, "track_line": tl}
 
 
 # ---- enrichment ----

@@ -227,6 +227,11 @@ def snapshot() -> dict:
         # ---- Structure recs ----
         "structure": {
             "as_of": "Profiles 17:00 ET Wed · re-priced 09:15 · gate on",
+            "learning": {"horizon": 5, "n_outcomes": 310, "rows": [
+                {"type": "Resistance", "win_pct": "61%", "n": 48, "enough": True},
+                {"type": "Support", "win_pct": "54%", "n": 39, "enough": False},
+                {"type": "Flag", "win_pct": "57%", "n": 52, "enough": True},
+            ]},
             "recs": [
                 {"sym": "NVDA", "price": "187.40", "dir": "▲ Up", "dir_class": "dir-up",
                  "zone": "Thin resistance", "dist": "+0.9%",

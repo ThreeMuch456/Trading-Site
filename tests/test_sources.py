@@ -176,11 +176,19 @@ def test_structure_maps_recs_rotation_quant():
     recs, rot = _load("recs.json"), _load("rotation.json")
     quant = {"NVDA": 72, "AMD": 68, "META": 54, "XOM": 63, "TSLA": 41}
 
+    learning = {"available": True, "n_outcomes": 310, "min_samples": 40, "groups": [
+        {"type": "resistance", "horizon": 5, "n": 48, "win_pct": 61.0, "avg_return": 1.4},
+        {"type": "support", "horizon": 5, "n": 39, "win_pct": 54.0, "avg_return": 0.6},
+        {"type": "resistance", "horizon": 10, "n": 40, "win_pct": 58.0, "avg_return": 2.0},
+    ]}
+
     def dispatch(url, *a, **k):
         if url.endswith("/api/recs.json"):
             return recs
         if url.endswith("/api/rotation"):
             return rot
+        if url.endswith("/api/learning.json"):
+            return learning
         if "/api/analyze" in url:
             t = up.parse_qs(up.urlparse(url).query).get("ticker", ["?"])[0]
             return {"scorecard": {"overall": quant.get(t)}}
@@ -188,6 +196,11 @@ def test_structure_maps_recs_rotation_quant():
     structure.http_get_json = dispatch
 
     c = structure.collect(CFG, 2.0)
+    # Self-calibration (recursive learning): shortest horizon, sample-gated.
+    assert c["learning"]["horizon"] == 5
+    lr = {r["type"]: r for r in c["learning"]["rows"]}
+    assert lr["Resistance"]["enough"] is True and lr["Support"]["enough"] is False
+    assert "resistance setups win 61%" in c["track_line"]["text"]
     rows = {r["sym"]: r for r in c["recs"]}
     nv = rows["NVDA"]
     assert nv["dir"] == "▲ Up" and nv["zone"] == "Thin resistance" and nv["dist"] == "+0.9%"
@@ -204,9 +217,11 @@ def test_structure_maps_recs_rotation_quant():
     assert s["structure"]["recs"][0]["sym"] == "NVDA"
     scard = next(cd for cd in s["overview_cards"] if cd["href"] == "structure")
     assert any(st.get("l") == "Passing gate" and st["v"] == "5" for st in scard["stats"])
+    assert s["structure"]["learning"]["rows"]
+    assert any("resistance setups win" in ln["text"] for ln in s["eod"]["track_record"]["lines"])
     config.SOURCES["flow"]["url"] = ""
     config.SOURCES["stock"]["url"] = ""
-    print("  structure: recs+rotation+quant mapped, components/score/live correct, merge OK")
+    print("  structure: recs+rotation+quant+win-rates mapped, track line, merge OK")
 
 
 def test_fetch_fails_soft(monkeypatch=None):

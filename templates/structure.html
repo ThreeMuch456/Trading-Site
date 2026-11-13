@@ -57,6 +57,27 @@
   </div>
 </div>
 
+{% if s.structure.learning and s.structure.learning.rows %}
+<div class="section">
+  <div class="section-header"><span class="sh-title">Setup Win-Rates — self-calibration</span>
+    <span class="sh-meta">{{ s.structure.learning.horizon }}d horizon · {{ s.structure.learning.n_outcomes }} labeled outcomes</span></div>
+  <div class="section-body">
+    <div class="perf-grid">
+      {% for r in s.structure.learning.rows %}
+      <div class="perf">
+        <div class="pl">{{ r.type }}{% if not r.enough %} <span class="badge watch" style="font-size:0.5rem;">building</span>{% endif %}</div>
+        <div class="pv {{ 'up' if r.enough else 'flat' }}">{{ r.win_pct }}</div><div class="ps">n = {{ r.n }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="note">Win-rate is the share of each setup type that "worked" per the engine's fixed rule at the
+      {{ s.structure.learning.horizon }}-day horizon. A type needs enough labeled samples before its rate is
+      trustworthy ("building" until then) — the screener accrues this history automatically and feeds it back
+      into the combined score.</div>
+  </div>
+</div>
+{% endif %}
+
 <div class="section">
   <div class="section-header"><span class="sh-title">How the enrichment stacks</span>
     <span class="sh-meta">one engine's recs, scored by the others</span></div>
