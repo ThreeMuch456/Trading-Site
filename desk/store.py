@@ -99,6 +99,33 @@ def summary() -> dict:
         return {"sessions": 0, "since": None, "graded": 0, "correct": 0}
 
 
+def history(limit: int = 30) -> list:
+    """Recent sessions from the desk journal, newest first — risk, the AI biases,
+    the top structure names, and how that day's biases graded."""
+    try:
+        with _conn() as c:
+            rows = c.execute(
+                "SELECT date, risk_rating, biases, structure FROM daily_signals "
+                "ORDER BY date DESC LIMIT ?", (limit,)).fetchall()
+            graded = {g["date"]: g for g in c.execute(
+                "SELECT date, COUNT(*) t, COALESCE(SUM(correct),0) ok FROM graded_biases GROUP BY date")}
+        out = []
+        for r in rows:
+            biases = json.loads(r["biases"] or "{}")
+            structure = json.loads(r["structure"] or "[]")
+            g = graded.get(r["date"])
+            out.append({
+                "date": r["date"],
+                "risk": r["risk_rating"] or "—",
+                "biases": " · ".join(f"{k} {(v or {}).get('bias', '').lower()}" for k, v in biases.items()),
+                "top": ", ".join(x.get("sym", "") for x in structure[:3]),
+                "graded": f"{g['ok']}/{g['t']}" if g else "—",
+            })
+        return out
+    except Exception:
+        return []
+
+
 def track_record_items() -> list:
     """Desk-owned learning lines for the EOD Track Record block."""
     s = summary()

@@ -129,6 +129,9 @@ def _record_learning(s: dict, degraded: dict) -> None:
             store.ingest_grades(grades)
         tr = s.setdefault("eod", {}).setdefault("track_record", {"lines": []})
         tr["lines"] = list(tr.get("lines") or []) + store.track_record_items()
+        hist = store.history()
+        if hist:
+            s["eod"]["history"] = hist
     except Exception:
         pass
 

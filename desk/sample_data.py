@@ -314,6 +314,11 @@ def snapshot() -> dict:
                 {"src": "Structure", "text": "resistance setups win 61% at the 5-day horizon"},
                 {"src": "Desk", "text": "Desk journal: 1 session logged"},
             ]},
+            "history": [
+                {"date": "2026-11-12", "risk": "Moderate", "biases": "SPY neutral · QQQ bullish · IWM bearish", "top": "NVDA, AMD, META", "graded": "2/3"},
+                {"date": "2026-11-11", "risk": "Elevated", "biases": "SPY bullish · QQQ bullish · IWM neutral", "top": "NVDA, AVGO, XOM", "graded": "3/3"},
+                {"date": "2026-11-10", "risk": "Moderate", "biases": "SPY neutral · QQQ neutral · IWM bearish", "top": "AMD, SMCI, META", "graded": "1/3"},
+            ],
             "risk_next": "Mixed · event-gated",
             "risk_note": (
                 "CPI at 08:30 dominates — the call lean is the base case, but a hot core print voids it and the "

@@ -101,6 +101,27 @@
   </div>
 </div>
 
+{% if s.eod.history %}
+<div class="section">
+  <div class="section-header"><span class="sh-title">Recent Sessions — desk journal</span>
+    <span class="sh-meta">{{ s.eod.history|length }} logged · newest first</span></div>
+  <div class="section-body">
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th class="l">Date</th><th class="c">Risk</th><th class="l">AI biases</th><th class="l">Top structure</th><th class="c">Graded</th></tr></thead>
+        <tbody>
+          {% for h in s.eod.history %}
+          <tr><td class="l tk">{{ h.date }}</td><td class="c">{{ h.risk }}</td><td class="l">{{ h.biases }}</td><td class="l">{{ h.top }}</td><td class="c">{{ h.graded }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="note">The desk journal logs every session's composed signals and grades them over time — an
+      independent, desk-owned record that accrues alongside each tool's own learning loop.</div>
+  </div>
+</div>
+{% endif %}
+
 <div class="section">
   <div class="section-header"><span class="sh-title">Next-Session Risk Read</span></div>
   <div class="section-body" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
