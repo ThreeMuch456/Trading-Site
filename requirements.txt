@@ -13,3 +13,5 @@ pytz
 # engines/zerodte (vendored 0DTE-Assistant) — async Massive client (httpx) on a
 # background event loop; yfinance underlying feed (pandas via yfinance above).
 httpx
+# engines/agent (vendored Trading-Agent) — scheduled Claude morning brief + grading.
+anthropic
