@@ -1,0 +1,378 @@
+# Thin-Zone Screener configuration
+# Every tunable knob lives here so you can adjust behavior without touching code.
+
+data:
+  provider: yfinance        # only "yfinance" implemented today; interface allows swapping
+  timeframe: "1h"           # bar size: 1m, 5m, 15m, 1h, 1d (mind yfinance intraday limits)
+  lookback_days: 60         # how far back to pull bars (1h supports up to ~730d)
+  cache_dir: "data"         # on-disk bar cache (re-runs don't re-download).
+                            # Overridden by env DATA_DIR or RAILWAY_VOLUME_MOUNT_PATH
+                            # (set automatically by Railway when a volume is attached)
+                            # so ALL persistent state — caches, screen results, the
+                            # learning DB — lands on the mounted volume, not the
+                            # container's ephemeral filesystem.
+  cache_max_age_hours: 12   # refetch a ticker if its cached bars are older than this
+
+profile:
+  # Binning is the single most sensitive knob.
+  bin_method: "atr"         # "fixed" -> use bin_count; "atr" -> bin width = atr_mult * ATR
+  bin_count: 100            # used when bin_method == "fixed"
+  atr_period: 14            # ATR lookback (in bars) when bin_method == "atr"
+  atr_mult: 0.25            # bin width = atr_mult * ATR  (smaller -> finer/noisier)
+  min_bins: 24              # clamp so ATR binning never gets absurdly coarse
+  max_bins: 400             # ...or absurdly fine
+
+  distribution: "range"     # "typical" -> dump volume at (H+L+C)/3 bin
+                            # "range"   -> spread volume across the [low, high] bins
+  range_shape: "uniform"    # when distribution == "range": "uniform" or "triangular"
+
+  smooth_window: 3          # rolling-mean window over the volume[bin] array (1 = no smoothing)
+  value_area_pct: 0.70      # fraction of total volume that defines the value area
+
+  recency_half_life_days: 20  # exponential decay of bar volume by age before binning:
+                              # volume traded N days before the last bar counts
+                              # 0.5^(N/half_life). Makes LVN/HVN/POC reflect *current*
+                              # structure. 0 = off (raw profile, matches TradingView VPVR).
+
+  hvn_percentile: 70        # local maxima above this volume percentile are HVNs
+  lvn_percentile: 30        # local minima below this volume percentile are LVNs
+  peak_distance_bins: 2     # min separation (in bins) between detected peaks/troughs
+
+detect:
+  max_distance_pct: 8.0     # LVN must be within this % of price to count as "near"
+  max_distance_atr: 4.0     # ...and/or this many ATRs (both must fail to exclude)
+  require_clearance: true   # only surface LVNs with a clear path (no HVN between it
+                            # and price); false = report blocked LVNs with clearance=False
+
+score:
+  # Thinness score weights (per direction). Higher score = thinner & more actionable.
+  w_closeness: 0.40         # closer LVN to price -> better
+  w_depth: 0.30             # lower volume in the gap -> thinner
+  w_width: 0.20             # wider thin zone -> more room to run
+  w_clearance: 0.10         # clean path (no HVN between) -> bonus
+  rvol_baseline_days: 20    # RVOL = last full day's volume / avg of this many prior days
+  # Drop known POSITIVE-gamma names from the displayed/ranked list entirely
+  # (dealer hedging dampens moves there, so thin zones matter less). Tickers with
+  # UNKNOWN gamma (no options data / provider failure) are kept, so a bad GEX day
+  # can't blank the dashboard. Everything is still logged to the learning DB
+  # either way — the /learning gamma table is what will eventually confirm or
+  # refute this filter. The dashboard also has a client-side −γ/+γ dropdown if
+  # you'd rather keep +γ rows visible.
+  negative_gamma_only: false
+  combined:
+    # Overall ranking = w_zone*aligned-zone + w_flag*flag + w_gex*gex_amp + w_rvol*rvol_amp.
+    # Both amplification terms apply only when there's a setup to amplify (base > 0).
+    # Weights rebalanced 2026-07-27 from the /learning calibration: thin ZONES are
+    # the screener's real edge (resistance 64-74% win, support 53-80%), while the
+    # FLAG score turned out anti-predictive (higher-scored flags won LESS: 28% vs
+    # 48% at 5d over n=169). So zone up 0.45->0.50, flag trimmed 0.25->0.12, and a
+    # flag now only scores when it sits alongside a real aligned zone (see
+    # agreement.require_zone below) — a flag is an amplifier of an air-pocket
+    # thesis, no longer a standalone one.
+    #
+    # Rebalanced again 2026-08-12 on 4× the sample. Two terms were not earning
+    # their weight and are now zero / near-zero:
+    #   flag — still anti-predictive at n=917 (5d) / n=605 (10d). At 10d the score
+    #     is INVERTED by 13.0pp (high-scoring half 36.2% vs low 49.2%); at 5d it
+    #     does not discriminate (45.2 vs 49.2). Trimming 0.25->0.12 did not fix it,
+    #     so the weight goes to 0: a flag no longer moves the RANK at all. It still
+    #     counts toward agreement.min_signals (it remains a corroborating filter)
+    #     and still shows on the dashboard.
+    #   gex — the gamma SIGN does not sort outcomes. At 5d, -γ under 1% of ADV$
+    #     wins 50.7% (n=209) vs +γ 51.1% (n=1003), and the ordering is backwards:
+    #     the bigger -γ bucket (1-5% of ADV$) wins LESS at 46.5%. Average signed
+    #     return is more negative for -γ in every bucket at both horizons. No
+    #     setting of gex_full_at_adv_frac rescues a term whose sign doesn't sort,
+    #     so 0.15 -> 0.05, kept nonzero only as a tiebreaker while the far-wall and
+    #     excess-return columns accumulate.
+    # Zone absorbs the freed weight; rvol holds pending its new calibration table.
+    #
+    # Rebalanced a third time 2026-08-26, at 2463 opps / 3878 outcomes, on the
+    # first read where excess_return (return net of SPY over the identical window)
+    # had a usable sample. That column settled the standing question — the
+    # resistance/support mirror was NOT beta: SPY drift over these windows averaged
+    # only -0.18% to -0.42%, so excess is within a few tenths of signed return.
+    # The remaining two amplifiers both failed their own evidence tables, so the
+    # combined score is now the aligned-zone score alone:
+    #   gex — the sign is BACKWARDS, not merely weak. +γ beats -γ at both horizons
+    #     (52.2%/55.2% vs 49.8%/52.5% for the -γ<1%-of-ADV$ bucket that holds the
+    #     mass, n=307/261), and the magnitude buckets don't ladder. 0.05 was kept
+    #     in 2026-08-12 only as a tiebreaker "while the far-wall and excess-return
+    #     columns accumulate" — they accumulated, and they convict it. 0.05 -> 0.
+    #   rvol — carried 0.15 for a month with no evidence table; it now has one and
+    #     the weight is inverted. The QUIET bucket (RVOL<1x, n=1366/1181) posts the
+    #     best excess return (+0.39%/+0.58%), while the >=2x bucket that collects
+    #     FULL credit posts -0.27%/-1.11%. The weight pays the worse cohort. -> 0.
+    # Zone takes the whole 1.00. Nothing else has earned a share of the rank.
+    w_zone: 1.00              # was 0.72
+    w_flag: 0.00              # was 0.12 — anti-predictive, see above
+    w_gex: 0.00               # was 0.05 — gamma sign sorts backwards, see above
+    w_rvol: 0.00              # was 0.15 — quiet names beat busy ones, see above
+    # Per-side multiplier on the aligned zone's contribution to the RANK. The
+    # 2026-08-26 excess-return read found the zone edge is real but ONE-SIDED:
+    # resistance@10d earns +2.04% excess on a 72.2% hit rate (n=151), while support
+    # reaches its LVN just as reliably (67.2%) and still trails the market at both
+    # horizons (-0.43% @5d, -1.40% @10d, positive on 1 of 10 detection dates).
+    # Support isn't mis-detected — price gets to the pocket — it just doesn't pay.
+    #
+    # This is a DE-RANK, deliberately not a suppression. The excess sample rests on
+    # 8-10 distinct detection dates inside a single regime (2026-08-03..08-19), which
+    # is far too thin to retire a whole side; and dropping support would stop
+    # generating support outcomes, so the learning loop could never tell us the
+    # regime had turned. Damped rows still rank, still log, still calibrate.
+    # Set support: 0.0 to mute the side entirely (it still logs), 1.0 to restore.
+    #
+    # Applied to the RANK only: the per-opportunity `score` written to the learning
+    # DB stays undamped, and /learning median-splits WITHIN each (type, horizon), so
+    # a constant per-side factor cannot move the very tables that judge it.
+    side_weight:
+      support: 0.5
+      resistance: 1.0
+    # gex_amp: 0 unless net dealer gamma is negative, then |net GEX| scaled to 0..1,
+    # reaching full credit when it equals this fraction of the ticker's average daily
+    # dollar volume. Uncalibrated first guess — the /learning gamma table will tell
+    # us whether it discriminates; falls back to binary when ADV$ is unavailable.
+    gex_full_at_adv_frac: 0.05
+    # rvol_amp: 0 at RVOL <= 1x, scaling linearly to full credit at this multiple.
+    rvol_full_at: 2.0
+  agreement:
+    # Noise filter: a single weak/lone signal (a mediocre zone with nothing else,
+    # or a bare flag) no longer scores at all. At least min_signals of
+    # {zone, flag, gex, rvol} must each clear their own bar below, AND a real
+    # aligned ZONE must be among them (see require_zone) — a flag, GEX, or RVOL
+    # without an air-pocket thesis isn't a setup. Set enabled: false to restore
+    # the old "any nonzero base scores" behavior.
+    enabled: true
+    require_zone: true      # the aligned thin zone must clear min_zone_score for the
+                            # setup to rank — a flag alone no longer qualifies (the
+                            # /learning data showed the flag score is anti-predictive).
+                            # false = old behavior (zone OR flag counts as structural).
+    min_signals: 2          # how many of the 4 signals must agree
+    min_zone_score: 0.4     # the aligned zone's own thinness score (0-1) to count
+    min_flag_score: 0.4     # the flag's own quality score (0-1) to count
+    min_gex_amp: 0.2        # gex_amp (0-1) to count
+    min_rvol_amp: 0.2       # rvol_amp (0-1) to count
+
+gex:
+  # Dealer gamma exposure from listed option chains (net = calls - puts, naive
+  # dealer convention). Negative net GEX means dealer hedging amplifies moves ->
+  # combined-score bonus.
+  enabled: true
+  provider: "auto"          # "auto" = Massive.com paid snapshot (OPRA-wide,
+                            # exchange greeks + OI, needs an API key) when
+                            # MASSIVE_API_KEY / POLYGON_API_KEY is set, then CBOE
+                            # free delayed quotes, then yfinance. Or force
+                            # "massive" / "cboe" / "yfinance".
+  # massive_api_key: ""     # prefer the env var (don't commit keys); this exists
+                            # for local experiments only
+  massive_base_url: "https://api.massive.com"   # api.polygon.io also still works
+  max_days: 45              # only expiries within this many calendar days
+  max_expiries: 2           # nearest N expiries to include
+  cache_hours: 12           # per-ticker caches (data/gex/, data/massive/) so the
+                            # job fetches each chain once/day; the Massive snapshot
+                            # cache is shared with the universe options filter
+  max_workers: 4            # parallel chain fetches — keep LOW on cloud hosts for
+                            # the free fallbacks: Yahoo rate-limits datacenter IPs
+                            # hard. Paid Massive plans have no such limit; bump to
+                            # ~8-12 once the key is live if the GEX phase is slow.
+  retries: 2                # per-ticker retries with backoff when a chain fetch fails
+
+flow:
+  # Options-flow features (src/flow.py) logged into the learning DB as flow_* /
+  # scanner_* / iv_skew. LOGGED ONLY — nothing here enters score.combined. Flag,
+  # GEX and RVOL each looked plausible and sorted backwards once labeled; flow
+  # earns a weight only after /learning shows it separates outcomes in BOTH
+  # directions. No bid/ask on the plan, so "aligned share" = activity on the
+  # setup's side, not bought-vs-sold.
+  enabled: true
+  short_dte_days: 7         # "short-dated" bucket for flow_aligned_short_share
+  deep_itm_delta: 0.95      # |delta| at/above this is excluded from premium
+                            # (intrinsic-value spread legs / buy-writes)
+  # Per-ticker baseline for the *_aligned_share_vs_base features: today's call
+  # share minus the mean of the ticker's previous N sessions (flow_daily table),
+  # signed to the setup's side. Raw aligned share is mostly a stock's structural
+  # call/put mix; this isolates flow that's unusual for that name.
+  baseline_sessions: 10     # trailing sessions averaged
+  baseline_min_sessions: 3  # fewer prior sessions -> vs_base is NULL
+  # Options Flow Scanner 24h per-ticker rollup (GET /api/ticker/<symbol>).
+  # Prefer env FLOW_SCANNER_URL; empty = disabled (no calls, scanner_* NULL).
+  scanner_url: ""
+  scanner_timeout: 15       # seconds per request
+  scanner_workers: 4        # parallel requests against the scanner
+
+earnings:
+  # Next scheduled earnings date per ticker (yfinance calendar, best-effort).
+  # Earnings inside a setup's evaluation window are the classic catalyst that both
+  # creates and confounds air-pocket moves — shown as a column and flagged (⚡) on
+  # the /learning page when they fall inside an outcome's horizon.
+  enabled: true
+  cache_hours: 48           # dates rarely move; re-check every couple of days
+  max_workers: 4            # parallel calendar fetches (keep low; same host as bars)
+
+flags:
+  # Bull/bear flag detection (hourly bars). The flag window slides: its length
+  # ranges over [flag_min_bars, flag_max_bars] and it may end up to
+  # flag_max_age_bars back from the latest bar.
+  pole_min_bars: 5          # minimum bars in the pole
+  pole_max_bars: 30         # maximum bars in the pole
+  pole_min_pct: 4.0         # minimum % move to qualify as a pole
+  flag_min_bars: 10         # shortest consolidation to consider (~1.5 trading days on 1h)
+  flag_max_bars: 30         # longest consolidation to consider (~5 trading days on 1h)
+  flag_max_age_bars: 0      # how many bars back the flag may end (0 = must be current)
+  flag_max_retrace_pct: 50.0  # flag may give back at most this % of the pole
+  flag_max_channel_pct: 9.0   # flag channel height as % of price (tighter = better)
+
+filter:
+  # Applied when universe.source == "filtered". Results cached to data/universe_filter_cache.json.
+  # Goal: only surface names with HIGH daily volume in both the shares AND the options.
+  # Options volume/OI come from the Massive snapshot when an API key is configured
+  # (cached, shared with GEX); otherwise from yfinance chains.
+  min_avg_volume: 2000000     # 3-month average daily share volume
+  min_options_volume: 10000   # call+put contracts traded per day, summed over the
+                              # nearest `options_expiries` expiries (0 = skip).
+                              # ~10k keeps roughly the top actively-optioned names;
+                              # lower to ~3000 if the universe gets too small.
+  min_options_oi: 10000       # combined call+put open interest over the same expiries (0 = skip)
+  options_expiries: 2         # how many near expiries to sum volume/OI across
+                              # (2 spans a weekly + the front monthly)
+  cache_hours: 48             # how long to reuse the filter result before re-checking
+  max_workers: 20             # parallel threads for yfinance calls during filtering
+
+universe:
+  # "watchlist"  -> hardcoded list below (fast, for single-ticker dev)
+  # "sp500"      -> S&P 500 from Wikipedia
+  # "ndx100"     -> Nasdaq-100 from Wikipedia
+  # "filtered"   -> sp500 + ndx100 combined, filtered by volume / options liquidity
+  source: "filtered"
+  watchlist:
+    - AAPL
+    - MSFT
+    - NVDA
+    - AMZN
+    - GOOGL
+    - META
+    - TSLA
+    - AMD
+    - NFLX
+    - JPM
+    - XOM
+    - WMT
+    - DIS
+    - BA
+    - COIN
+    - PLTR
+    - SHOP
+    - UBER
+    - SOFI
+    - MARA
+
+web:
+  port: 5000                       # local dev only; on Railway the $PORT env var wins
+  daily_refresh_hour: 17           # re-screen daily at this hour in refresh_timezone (after the 16:00 close)
+  refresh_timezone: "America/New_York"
+
+  # Pre-open re-price pass (src/reprice.py). The 17:00 profile is ~17h stale by
+  # the bell: an overnight gap moves price relative to the same volume structure,
+  # so every distance-to-zone and the "is it near?" gate is wrong at 9:30. This
+  # refreshes SPOT ONLY against the already-built profiles — no bar refetch, no
+  # profile rebuild — then re-detects and re-ranks. Display-only: it never writes
+  # to the learning log, so the labeled dataset keeps one clean EOD row per day.
+  reprice_enabled: true
+  reprice_hour: 9                  # 09:15 ET — late enough for real pre-market prints,
+  reprice_minute: 15               # early enough to be ready before the open
+  reprice_min_move_pct: 0.0        # skip tickers that moved less than this overnight
+                                   # (0 = re-price everything; raise to cut churn)
+  reprice_chunk: 100               # tickers per batched quote request
+  run_scheduler: true              # run the screen job in-process (daily + on first start).
+                                   # Set false (or env RUN_SCHEDULER=false) to run as a pure
+                                   # reader behind an external cron worker (python main.py --screen-job).
+
+learn:
+  # Self-calibration data foundation. Each screen logs its detected zones/flags to
+  # an append-only SQLite log (data/opportunities.db); once a horizon elapses, the
+  # labeler revisits each one and records the objective outcome. Descriptive only —
+  # it never changes the live screener, it just accumulates a labeled history.
+  enabled: true
+  db_path: "data/opportunities.db"   # opportunity + outcome log
+  dataset_version: "3-recency-rvol"  # methodology tag for the log. Bumping this archives
+                                     # the existing DB (*.bak, never deleted) and starts a
+                                     # fresh history at the next job — do this whenever the
+                                     # scoring changes enough that old rows aren't comparable.
+                                     # "2-gex": combined score includes the dealer-GEX bonus.
+                                     # "3-recency-rvol": recency-weighted profiles, RVOL term,
+                                     # magnitude-scaled GEX, rebalanced combined weights.
+                                     #
+                                     # NOT bumped for the 2026-08-12 reweight (w_flag->0,
+                                     # w_gex->0.05, unmeasurable-GEX fallback->0), deliberately.
+                                     # Bumping archives 2181 labeled outcomes, and the tables
+                                     # that drove the change are FEATURE-based (gamma bucket,
+                                     # RVOL bucket, live confirmation, excess return) — those
+                                     # stay comparable across a scoring change. Only the
+                                     # score-median-split verdicts in --tune-report mix old and
+                                     # new scoring, and only until new rows dominate. Rows are
+                                     # separable by run_date: on/after 2026-08-13 = new weights.
+                                     # Revisit ~2026-09-10, when post-change rows outnumber the
+                                     # old ones and the split is clean again.
+  horizons_days: [5, 10]             # forward windows (calendar days) to evaluate over
+  # First run_date under the current rank weights. /learning splits every
+  # (type, horizon) into before / since this date, the out-of-sample check on
+  # whatever edge the last reweight was based on. Move it whenever score.combined
+  # changes. Empty / null hides the split.
+  regime_start: "2026-08-27"         # b791d84: zone-only rank, support side_weight 0.5
+  # Benchmark for excess_return = (fwd_return - benchmark_return) * direction sign.
+  # Resistance (↑) has been averaging +1.51% signed at 5d while support (↓) averages
+  # -1.41% — a near-perfect mirror, which is what market DRIFT looks like, not what
+  # a structural edge looks like (a real edge is positive in both directions). This
+  # column is the test: if resistance's excess collapses toward zero, the screener
+  # has been measuring beta. Assumes beta = 1 — a drift adjustment, not a risk model.
+  # Empty string / null disables it (excess_return stays NULL). Only applies to rows
+  # labeled from here on; existing rows keep NULL unless you --relabel.
+  benchmark: "SPY"
+  # Flag "win" = a favorable move of (this × √horizon_days) ATRs before an equal
+  # adverse one. Replaces the old flat `atr_target: 1.0`, which was miscalibrated:
+  # profile.atr is the *hourly* ATR (atr_period bars of the 1h series), so a flat
+  # 1.0 put a one-14-hour-range barrier on a 5–10 DAY window. Both sides were
+  # breached almost immediately — every group's avg MFE *and* MAE ran 2.7–5.8 ATRs
+  # — so the label was decided in the first bar or two and measured the next hour,
+  # not the horizon. Diffusion scales with √t, so the barrier does too. At 0.9
+  # that's ~2.0 ATR at 5d and ~2.8 at 10d, inside the observed excursion range for
+  # both horizons, so the barrier actually splits the sample.
+  # Ties (both barriers breached in the same bar) now count as LOSSES: intrabar we
+  # can't know which came first, and the old `<=` counted them as wins, biasing
+  # every flag win-rate upward.
+  barrier_atr_per_sqrt_day: 0.9
+  # Partial-run guard: a screen that clearly didn't see the whole universe is
+  # NOT logged (labeling still runs; the reason shows at /healthz and /learning
+  # as learn_skipped). Trips when screened/universe < this, or when tickers with
+  # a detection < this x the median of the last coverage_lookback_runs sessions.
+  # 2026-10-08 logged 9 tickers vs a ~70 norm. 0 disables.
+  min_run_coverage: 0.5
+  coverage_lookback_runs: 10
+  min_label_samples: 50              # per (type, horizon) outcomes required before the
+                                     # tuner will recommend anything (else "insufficient data").
+                                     # Recommendations are advisory only — never auto-applied.
+
+live:
+  # Opt-in intraday "activation" monitor (src/live.py, unlisted /live page). Streams
+  # Massive's delayed options AM (minute-aggregate) feed for the near-expiry chains of
+  # the day's top-ranked setups, and flags names whose OPTION volume is surging in the
+  # setup's direction — and whether that volume is clustering at the gamma flip/walls.
+  # Read-only over the EOD core: never touches the screen job, store, or learning DB.
+  # Needs MASSIVE_API_KEY (env). Data is 15-min delayed (confirmation, not a live trigger).
+  enabled: true
+  ws_url: "wss://delayed.massive.com/options"   # delayed options cluster (Polygon lineage)
+  top_n: 20                    # monitor this many of the day's ranked setups
+  strike_window_pct: 10        # subscribe contracts within ±this% of spot
+  min_contract_oi: 100         # skip illiquid strikes
+  activation_rvol: 2.0         # options RVOL (dir-aligned) that marks a setup "activating"
+  flip_share_hot: 0.25         # one strike holding >this share of the day's option vol = pressure
+  refresh_seconds: 45          # /live page auto-refresh + evaluate cadence
+  min_session_fraction: 0.1    # ignore RVOL until this much of the (delayed) session has elapsed
+  session_tz: "America/New_York"
+  data_delay_min: 15           # feed delay; shifts the session clock so RVOL isn't overstated
+  max_sub_symbols: 1200        # safety cap on total subscribed contracts
+
+report:
+  out_dir: "output"
+  make_charts: false        # render matplotlib PNGs for the top-N candidates (CLI mode)
+  chart_top_n: 10

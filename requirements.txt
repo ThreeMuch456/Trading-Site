@@ -15,3 +15,10 @@ pytz
 httpx
 # engines/agent (vendored Trading-Agent) — scheduled Claude morning brief + grading.
 anthropic
+# engines/structure (vendored Structure-Identifier) — thin-zone screen + learning DB.
+# pandas: volume-profile/flags/gex math; scipy: zone detection; lxml: sp500/ndx100
+# universe via pandas.read_html; pyyaml: config.yaml. (Charts/report deps omitted.)
+pandas
+scipy
+lxml
+pyyaml

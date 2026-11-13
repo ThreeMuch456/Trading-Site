@@ -43,7 +43,7 @@ _ENGINE_MODULES: list[str] = [
     "engines.flow",         # Phase 2
     "engines.zerodte",      # Phase 3
     "engines.agent",        # Phase 4
-    # "engines.structure",  # Phase 5
+    "engines.structure",    # Phase 5
 ]
 
 _loaded = False
