@@ -65,20 +65,35 @@ def _set_msg(msg: str) -> None:
         _run_state["message"] = msg
 
 
-def _soft(label: str, fn, default):
-    """Run one enrichment fetch, degrading to a default on ANY failure. The brief's
-    core is the watchlist quotes + the Claude synthesis; the global/futures/macro/
-    options fetches are context, and a single one failing — a yfinance socket
-    TimeoutError (Yahoo throttles datacenter IPs hard), or fetch_macro_calendar's
-    ValueError when no FRED_API_KEY is set — must not sink the whole brief. The
-    synthesis prompt already tolerates partial/degraded inputs."""
+def _soft(label: str, fn, default, timeout: float = 20.0):
+    """Run one enrichment fetch, degrading to a default on failure OR if it runs
+    past `timeout` seconds. The brief's core is the watchlist quotes + the Claude
+    synthesis; the global/futures/macro/options fetches are context, and none may
+    sink or stall the brief — not a yfinance socket error (Yahoo throttles
+    datacenter IPs hard), not fetch_macro_calendar's ValueError without FRED, and
+    not a slow-but-not-erroring option-chain pull (SPY's chain is huge and can take
+    minutes on a throttled host). The fetch runs in a daemon thread so a hang is
+    abandoned, not waited on; the synthesis prompt already tolerates degraded input."""
     _set_msg(label)
-    try:
-        return fn()
-    except Exception as e:  # noqa: BLE001
-        log.warning("brief: %s failed (%s) — continuing degraded",
-                    label.rstrip("… "), e)
-        return default() if callable(default) else default
+    box: dict = {}
+
+    def _run():
+        try:
+            box["v"] = fn()
+        except Exception as e:  # noqa: BLE001
+            box["e"] = e
+
+    th = threading.Thread(target=_run, name="brief-fetch", daemon=True)
+    th.start()
+    th.join(timeout)
+    fallback = default() if callable(default) else default
+    if th.is_alive():
+        log.warning("brief: %s exceeded %.0fs — continuing degraded", label.rstrip("… "), timeout)
+        return fallback
+    if "e" in box:
+        log.warning("brief: %s failed (%s) — continuing degraded", label.rstrip("… "), box["e"])
+        return fallback
+    return box.get("v", fallback)
 
 
 # --------------------------------------------------------- the writer (brief)
@@ -134,8 +149,11 @@ def _do_run() -> None:
         except Exception:
             rfr = 0.05
 
+        # Options chains (esp. SPY) are the heaviest pull — give it headroom, but
+        # still bound it so a throttled/slow fetch degrades instead of stalling.
         opts_raw = _soft("Fetching options data…",
-                         lambda: fetch_options_snapshot(WATCHLIST, risk_free_rate=rfr), {})
+                         lambda: fetch_options_snapshot(WATCHLIST, risk_free_rate=rfr), {},
+                         timeout=30.0)
         options_data = {"fetched_at": fetched_at, "options": opts_raw}
 
         _set_msg("Synthesizing gameplan with Claude…")
