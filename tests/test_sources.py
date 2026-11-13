@@ -90,7 +90,14 @@ def test_store_logs_and_grades(tmp=None):
 
 
 def test_zerodte_maps_levels_and_touches():
-    zerodte.http_get_json = lambda *a, **k: _load("state.json")
+    touchstats = {"available": True, "n": 420, "labels": {
+        "DEFENDED": {"n": 180, "rejected": 130, "breached": 40, "churn": 10},
+        "ATTACKED — BROKEN": {"n": 96, "rejected": 23, "breached": 70, "churn": 3},
+    }}
+
+    def dispatch(url, *a, **k):
+        return touchstats if url.endswith("/api/touch-stats.json") else _load("state.json")
+    zerodte.http_get_json = dispatch
     c = zerodte.collect(CFG, 2.0)
 
     spy = c["levels"]["SPY"]
@@ -107,10 +114,17 @@ def test_zerodte_maps_levels_and_touches():
     assert c["touches"][0]["tag_class"] in ("defended", "breached", "contested")
     assert any(t["sym"] == "QQQ" and t["tag_class"] == "breached" for t in c["touches"])
 
+    # Level-behaviour calibration (recursive learning).
+    assert c["touch_stats"]["rows"][0]["label"] == "DEFENDED"   # largest n first
+    assert c["touch_stats"]["rows"][0]["hold_pct"] == 72        # 130/180
+    assert "defended levels held 72%" in c["track_line"]["text"]
+
     s = sample_data.snapshot()
     zerodte.merge(s, c)
     assert next(t for t in s["tickers"] if t["sym"] == "SPY")["spot"] == "678.90"
     assert s["context"]["tickers"][0]["price"] == "678.90"
+    assert s["intraday"]["touch_stats"]["rows"]
+    assert any("defended levels held" in ln["text"] for ln in s["eod"]["track_record"]["lines"])
     print("  zerodte: SPY levels/regime/observed/touches mapped, ladder ordered, merge OK")
 
 

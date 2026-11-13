@@ -61,7 +61,9 @@ def collect(cfg: dict, timeout: float) -> dict:
             touches.append(_touch(sym, t))
         position.append(_position(sym, spot, regime, regime_class, cw, pw, flip, em_hi))
 
-    return {"levels": levels, "tiles": tiles, "touches": touches, "position": position}
+    touch_stats, track_line = _touch_calibration(cfg, timeout)
+    return {"levels": levels, "tiles": tiles, "touches": touches, "position": position,
+            "touch_stats": touch_stats, "track_line": track_line}
 
 
 def merge(s: dict, c: dict) -> None:
@@ -84,6 +86,38 @@ def merge(s: dict, c: dict) -> None:
         s["intraday"]["touches"] = c["touches"]
     if c["position"]:
         s["intraday"]["position"] = c["position"]
+    if c.get("touch_stats"):
+        s["intraday"]["touch_stats"] = c["touch_stats"]
+    tl = c.get("track_line")
+    if tl:
+        tr = s.setdefault("eod", {}).setdefault("track_record", {"lines": []})
+        tr["lines"] = list(tr.get("lines") or []) + [tl]
+
+
+# ---- learning (recursive): level-behaviour calibration ----
+
+def _touch_calibration(cfg: dict, timeout: float):
+    """Per flow label, how often price actually rejected the level (held). Best-effort
+    — returns (None, None) when the endpoint is absent or empty."""
+    try:
+        d = http_get_json(cfg["url"] + "/api/touch-stats.json", cfg.get("token", ""),
+                          cfg.get("header", "X-App-Token"), timeout)
+    except Exception:
+        return None, None
+    if not d.get("available"):
+        return None, None
+    rows = []
+    for label, v in sorted((d.get("labels") or {}).items(), key=lambda kv: -(kv[1].get("n") or 0)):
+        n = v.get("n") or 0
+        if n:
+            rows.append({"label": label, "n": n, "hold_pct": round((v.get("rejected") or 0) / n * 100)})
+    rows = rows[:6]
+    if not rows:
+        return None, None
+    best = next((r for r in rows if "DEFEND" in r["label"].upper()), rows[0])
+    track = {"src": "0DTE", "text": f"{best['label'].split(' ')[0].lower()} levels held "
+                                    f"{best['hold_pct']}% of the time (n={best['n']})"}
+    return {"n": d.get("n"), "rows": rows}, track
 
 
 # ---- helpers ----

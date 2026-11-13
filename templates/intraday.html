@@ -80,4 +80,22 @@
   </div>
 </div>
 
+{% if s.intraday.touch_stats and s.intraday.touch_stats.rows %}
+<div class="section">
+  <div class="section-header"><span class="sh-title">Level Behaviour — calibration</span>
+    <span class="sh-meta">{{ s.intraday.touch_stats.n }} resolved touches · learning record</span></div>
+  <div class="section-body">
+    {% for r in s.intraday.touch_stats.rows %}
+    <div class="skew-row"><span class="sym" style="min-width:210px; font-size:0.72em;">{{ r.label }}</span>
+      <span class="skew"><i class="c" style="width:{{ r.hold_pct }}%"></i><i class="p" style="width:{{ 100 - r.hold_pct }}%"></i></span>
+      <span class="pct">{{ r.hold_pct }}% held · n={{ r.n }}</span></div>
+    {% endfor %}
+    <div class="note">How often each flow label's implied read actually played out — the share of touches
+      carrying that label where price <b>rejected</b> the level (held) rather than breaking through. Accrues
+      across the retained touch history (a year of labeled touches is the engine's learning record), so a
+      DEFENDED read you see live can be weighed against how DEFENDED touches have historically resolved.</div>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}

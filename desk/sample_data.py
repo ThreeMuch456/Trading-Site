@@ -171,6 +171,12 @@ def snapshot() -> dict:
                 {"sym": "QQQ", "call_pct": 71, "label": "71% calls"},
                 {"sym": "IWM", "call_pct": 44, "label": "56% puts"},
             ],
+            "touch_stats": {"n": 420, "rows": [
+                {"label": "DEFENDED", "n": 180, "hold_pct": 72},
+                {"label": "DEFENDED — WEAKENING", "n": 64, "hold_pct": 55},
+                {"label": "CONTESTED", "n": 80, "hold_pct": 48},
+                {"label": "ATTACKED — BROKEN", "n": 96, "hold_pct": 24},
+            ]},
             "position": [
                 {"sym": "SPY", "spot": "682.10", "regime": "PIN", "regime_class": "pin",
                  "above": "684.00 CW", "above_dist": "+0.28%", "below": "681.00 0γ", "below_dist": "-0.16%", "flip": "+0.16%"},
