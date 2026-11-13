@@ -37,7 +37,7 @@ _SERVES: dict = {}
 # Engine submodules imported by load_all(). Populated as tools are ported. Each,
 # on import, registers its routes and source name. Order is irrelevant.
 _ENGINE_MODULES: list[str] = [
-    # "engines.stock",      # Phase 1
+    "engines.stock",        # Phase 1
     # "engines.flow",       # Phase 2
     # "engines.zerodte",    # Phase 3
     # "engines.agent",      # Phase 4

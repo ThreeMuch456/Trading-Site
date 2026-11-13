@@ -4,3 +4,6 @@ gunicorn
 apscheduler
 tzdata
 requests
+# engines/stock (vendored Stock-Analysis) — yfinance fundamentals/price/analysts/news
+yfinance
+numpy

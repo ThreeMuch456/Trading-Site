@@ -42,8 +42,14 @@ def enabled(name: str) -> bool:
     return bool(SOURCES.get(name, {}).get("url"))
 
 
+# Sources that render a page/section. "stock" is excluded — it only enriches the
+# Structure recs table's quant column, so it must never flip the site out of sample
+# mode on its own (that would show live banners over otherwise-sample pages).
+PAGE_SOURCES = ("agent", "zerodte", "flow", "structure")
+
+
 def any_live() -> bool:
-    return any(s["url"] for s in SOURCES.values())
+    return any(SOURCES[name]["url"] for name in PAGE_SOURCES)
 
 
 def refresh() -> None:
