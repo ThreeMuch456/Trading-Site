@@ -45,6 +45,15 @@ _db_ready = False
 # re-acquires it. A plain Lock deadlocks there.
 _lock = threading.RLock()
 
+# Serializes scans. The one-shot prime job and the first interval tick are
+# distinct APScheduler jobs, so flow-scan's max_instances=1 does not stop them
+# from running at the same time on startup — two concurrent run_scan() calls in
+# two sessions both miss an existing contract_volume_state row and both INSERT it,
+# tripping the UNIQUE(option_ticker) constraint. A non-blocking lock makes an
+# overlapping scan skip this tick rather than race (you never want two concurrent
+# scans against Massive anyway).
+_scan_lock = threading.Lock()
+
 
 def _ensure_db() -> None:
     global _db_ready
@@ -94,12 +103,17 @@ serve("flow", econf.has_massive)
 # ---- scanner (the writer), driven by the desk scheduler ----
 
 def _safe_scan() -> None:
+    if not _scan_lock.acquire(blocking=False):
+        log.info("flow scan already running — skipping this trigger")
+        return
     try:
         _ensure_db()
         from . import scanner
         scanner.run_scan()   # market-hours gated; no-op outside the session window
     except Exception:
         log.exception("flow scan failed")
+    finally:
+        _scan_lock.release()
 
 
 def _register_jobs(scheduler, tz) -> None:

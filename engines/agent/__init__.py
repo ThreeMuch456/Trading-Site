@@ -65,6 +65,22 @@ def _set_msg(msg: str) -> None:
         _run_state["message"] = msg
 
 
+def _soft(label: str, fn, default):
+    """Run one enrichment fetch, degrading to a default on ANY failure. The brief's
+    core is the watchlist quotes + the Claude synthesis; the global/futures/macro/
+    options fetches are context, and a single one failing — a yfinance socket
+    TimeoutError (Yahoo throttles datacenter IPs hard), or fetch_macro_calendar's
+    ValueError when no FRED_API_KEY is set — must not sink the whole brief. The
+    synthesis prompt already tolerates partial/degraded inputs."""
+    _set_msg(label)
+    try:
+        return fn()
+    except Exception as e:  # noqa: BLE001
+        log.warning("brief: %s failed (%s) — continuing degraded",
+                    label.rstrip("… "), e)
+        return default() if callable(default) else default
+
+
 # --------------------------------------------------------- the writer (brief)
 def _do_run() -> None:
     """Generate and persist one morning brief. Vendored verbatim from the tool's
@@ -81,20 +97,26 @@ def _do_run() -> None:
         fred_key = os.environ.get("FRED_API_KEY")
         fetched_at = datetime.now().isoformat(timespec="seconds")
 
+        # Core input — the SPY/QQQ/IWM quotes the gameplan is actually about. If
+        # this fails the brief is not worth synthesizing, so it stays required (the
+        # :15/:30 retry passes cover a transient); it is also the lightest fetch.
         _set_msg("Fetching market data…")
         market_raw = fetch_watchlist(WATCHLIST)
 
-        _set_msg("Fetching global / overnight markets…")
-        global_markets = fetch_global_markets()
-
-        _set_msg("Fetching index futures…")
-        futures = fetch_futures()
+        # Enrichment — degrade individually rather than sink the brief.
+        global_markets = _soft("Fetching global / overnight markets…",
+                               fetch_global_markets, {})
+        futures = _soft("Fetching index futures…", fetch_futures, [])
 
         market_data = {"fetched_at": fetched_at, "watchlist": market_raw,
                        "global_markets": global_markets, "futures": futures}
 
-        _set_msg("Fetching macro calendar…")
-        macro_data = fetch_macro_calendar(fred_key)
+        macro_data = _soft(
+            "Fetching macro calendar…",
+            lambda: fetch_macro_calendar(fred_key),
+            {"economic_releases": [], "earnings": [], "market_session": {},
+             "economic_error": "macro feed unavailable this run "
+                               "(set FRED_API_KEY for the economic calendar)"})
 
         _set_msg("Fetching risk-free rate…")
         try:
@@ -112,8 +134,8 @@ def _do_run() -> None:
         except Exception:
             rfr = 0.05
 
-        _set_msg("Fetching options data…")
-        opts_raw = fetch_options_snapshot(WATCHLIST, risk_free_rate=rfr)
+        opts_raw = _soft("Fetching options data…",
+                         lambda: fetch_options_snapshot(WATCHLIST, risk_free_rate=rfr), {})
         options_data = {"fetched_at": fetched_at, "options": opts_raw}
 
         _set_msg("Synthesizing gameplan with Claude…")
