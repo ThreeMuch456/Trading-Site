@@ -33,12 +33,14 @@ _ROUTES: dict = {}
 _PREFIX_ROUTES: dict = {}
 # source name -> predicate() -> bool  (is this source producible locally right now?)
 _SERVES: dict = {}
+# functions fn(scheduler, tz) that add an engine's background jobs to the desk scheduler
+_JOB_REGISTRARS: list = []
 
 # Engine submodules imported by load_all(). Populated as tools are ported. Each,
 # on import, registers its routes and source name. Order is irrelevant.
 _ENGINE_MODULES: list[str] = [
     "engines.stock",        # Phase 1
-    # "engines.flow",       # Phase 2
+    "engines.flow",         # Phase 2
     # "engines.zerodte",    # Phase 3
     # "engines.agent",      # Phase 4
     # "engines.structure",  # Phase 5
@@ -67,6 +69,26 @@ def route_prefix(prefix: str):
 def serve(name: str, predicate) -> None:
     """Declare that source `name` is produced in-process when predicate() is true."""
     _SERVES[name] = predicate
+
+
+def jobs(fn):
+    """Register a function fn(scheduler, tz) that adds an engine's background jobs
+    (e.g. a scanner/poller/scheduled brief) to the desk scheduler. Called by
+    desk.schedule.start() via add_jobs()."""
+    _JOB_REGISTRARS.append(fn)
+    return fn
+
+
+def add_jobs(scheduler, tz=None) -> None:
+    """Let every registered engine attach its background jobs to the desk scheduler.
+    Guarded per-engine so one engine's job wiring can't break the others."""
+    load_all()
+    for fn in _JOB_REGISTRARS:
+        try:
+            fn(scheduler, tz)
+        except Exception:
+            log.warning("engine job registrar %r failed", getattr(fn, "__module__", fn),
+                        exc_info=True)
 
 
 def load_all() -> None:

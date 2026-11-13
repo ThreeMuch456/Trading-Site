@@ -49,6 +49,16 @@ def start():
     sched.add_job(lambda: refresh("gameplan"), CronTrigger(hour=9, minute=35, **wk))
     sched.add_job(lambda: refresh("intraday"), CronTrigger(hour="10-15", minute="0,15,30,45", **wk))
     sched.add_job(lambda: refresh("eod"), CronTrigger(hour=16, minute=15, **wk))
+
+    # Let each vendored engine attach its own background job (the Flow scanner, and
+    # later the 0DTE/Structure/Agent jobs) to this one scheduler — the single-worker
+    # process owns every tool's cadence now.
+    try:
+        import engines
+        engines.add_jobs(sched, tz)
+    except Exception:
+        log.warning("engine background jobs not attached", exc_info=True)
+
     sched.start()
     log.info("desk scheduler started (tz=%s)", tz)
     return sched

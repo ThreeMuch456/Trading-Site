@@ -7,3 +7,6 @@ requests
 # engines/stock (vendored Stock-Analysis) — yfinance fundamentals/price/analysts/news
 yfinance
 numpy
+# engines/flow (vendored Options-Flow-Scanner) — SQLAlchemy sweep DB + ET clock
+SQLAlchemy
+pytz
