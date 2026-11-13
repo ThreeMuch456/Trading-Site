@@ -56,6 +56,9 @@ Deploy these **first** — the desk needs their public URLs.
 - [ ] Consider a status page or uptime check on each `/healthz`.
 
 ## Known gaps (code TODO, not deploy)
-- Overview snapshot cards are partly live (risk, flow, structure counts) but still mostly sample summaries.
 - Rotation uses OFS flow-based `/api/rotation`; a price-based RRG (lift from Sector-Scanner) is optional.
-- Snapshot history/replay for the desk is not built (would use the `/data` volume).
+- Sector-Scanner (Streamlit) is intentionally off the critical path; not deployed unless its RRG is wanted.
+- The desk EOD summary paragraph is deterministic; an optional AI intraday micro-summary is unused.
+
+The BUILD-PLAN is otherwise fully realized: six live-wired pages, recursive learning in every page,
+a desk-owned learning journal with session history, fail-soft fetch, opt-in scheduler, APP_TOKEN gate.
