@@ -55,6 +55,35 @@ Deploy these **first** — the desk needs their public URLs.
 - [ ] Confirm the daily schedules fire (desk 09:35/15-min/16:15; Structure 17:00 + 09:15 re-price; Agent AM).
 - [ ] Consider a status page or uptime check on each `/healthz`.
 
+## Variables cheat-sheet (exact names)
+
+**Two shared secrets you invent** and reuse across services:
+`<ZERO_DTE_SECRET>` (0DTE `APP_TOKEN` = desk `ZERO_DTE_TOKEN`) ·
+`<STRUCTURE_SECRET>` (Structure `EXPORT_TOKEN` = desk `STRUCTURE_TOKEN`).
+Project shared: `MASSIVE_API_KEY`, `ANTHROPIC_API_KEY`.
+
+| Service | Required | Volume | Notes |
+|---|---|---|---|
+| **Trading-Agent** | `ANTHROPIC_API_KEY`, `FRED_API_KEY`, `ENABLE_SCHEDULER=1` | `/data` → `DB_PATH=/data/journal.db` | `MASSIVE_API_KEY` optional (yfinance fallback); `RUN_TOKEN` optional (gates `/run` only — brief JSON is public, so desk needs no AGENT_TOKEN) |
+| **0DTE-Assistant** | `MASSIVE_API_KEY`, `APP_TOKEN=<ZERO_DTE_SECRET>` | `/data` → `DB_PATH=/data/0dte.sqlite3` | 1 worker (its railway.json pins it); gates every route |
+| **Options-Flow-Scanner** | `MASSIVE_API_KEY`, `SECRET_KEY=<random>` | `/data` (or a Railway Postgres via `DATABASE_URL`) | endpoints are public → desk needs no FLOW_TOKEN; tune thresholds via its many `ETF_*`/`ROTATION_*` vars (all have defaults) |
+| **Structure-Identifier** | `EXPORT_TOKEN=<STRUCTURE_SECRET>` | `/app/data` (irreplaceable learning DB) | `MASSIVE_API_KEY` only for the `/live` monitor; `RUN_SCHEDULER=true` default |
+| **Stock-Analysis** | — | none | `ANTHROPIC_API_KEY` optional and NOT needed for the desk (it calls `?ai=0`) |
+| **Trading-Site (desk)** | the 5 URLs + 2 tokens below | `/data` → `DESK_DB_PATH=/data/desk.sqlite3` | 1 worker; `APP_TOKEN` gates the desk itself |
+
+**Desk service variables** (the 5 upstream URLs are each service's Railway public domain):
+```
+AGENT_URL=https://<trading-agent>.up.railway.app
+ZERO_DTE_URL=https://<0dte>.up.railway.app     ZERO_DTE_TOKEN=<ZERO_DTE_SECRET>
+FLOW_URL=https://<options-flow>.up.railway.app
+STRUCTURE_URL=https://<structure>.up.railway.app   STRUCTURE_TOKEN=<STRUCTURE_SECRET>
+STOCK_URL=https://<stock-analysis>.up.railway.app
+APP_TOKEN=<desk-secret>            # then open the desk at ?token=<desk-secret>
+DESK_SCHEDULER=1  DESK_TZ=America/New_York  DESK_DB_PATH=/data/desk.sqlite3
+```
+The desk references **no** `MASSIVE_API_KEY`/`ANTHROPIC_API_KEY`. In Railway you can write a URL as
+`https://${{<ServiceName>.RAILWAY_PUBLIC_DOMAIN}}` instead of pasting the domain.
+
 ## Known gaps (code TODO, not deploy)
 - Rotation uses OFS flow-based `/api/rotation`; a price-based RRG (lift from Sector-Scanner) is optional.
 - Sector-Scanner (Streamlit) is intentionally off the critical path; not deployed unless its RRG is wanted.
