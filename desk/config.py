@@ -1,31 +1,40 @@
-"""Desk configuration — all env-driven, with safe defaults.
+"""Desk (compose-layer) configuration.
 
-If no upstream URLs are set, the desk runs in **sample mode** (renders the mock
-snapshot, exactly like Phase 0). Set a source's URL to make it live; each source
-is independent and fails soft on its own.
+Unified single-deploy model: the desk no longer reads six sibling services over
+HTTP — every source is now produced in-process by a vendored engine (see the
+``engines`` package). A source is "live" when its engine is registered AND its
+prerequisites are met (chiefly ``MASSIVE_API_KEY``). With nothing available the
+desk renders sample data, exactly as the old no-URLs path did.
+
+The ``SOURCES`` dict keeps its original shape (``url`` / ``token`` / ``header``) so
+the source adapters and the whole test-suite are unchanged; ``url`` is just a
+``local://<name>`` sentinel the transport shim routes to the engine instead of a
+network address. Tests still override ``SOURCES[name]["url"]`` directly.
 """
 
 import os
 
 TICKERS = [t.strip().upper() for t in os.environ.get("TICKERS", "SPY,QQQ,IWM").split(",") if t.strip()]
 
-FETCH_TIMEOUT = float(os.environ.get("DESK_FETCH_TIMEOUT", "4"))   # seconds per upstream call
+FETCH_TIMEOUT = float(os.environ.get("DESK_FETCH_TIMEOUT", "4"))   # seconds per source produce()
 CACHE_TTL = float(os.environ.get("DESK_CACHE_TTL", "60"))          # seconds to serve a composed snapshot
 
-# One entry per upstream service the desk reads. `header` is how the token is sent
-# (0DTE uses an X-App-Token header; the Morning Brief's JSON is public).
+# Which engines can produce right now (empty until engines are ported/available).
+# Guarded so a missing/broken engines package simply yields sample mode.
+try:
+    import engines as _engines
+    _AVAILABLE = _engines.available_sources()
+except Exception:
+    _AVAILABLE = set()
+
+# Header stays per-source for adapter compatibility; it is unused in-process (the
+# engine router ignores token/header) but a few adapters still read cfg["header"].
+_HEADERS = {"agent": "X-App-Token", "zerodte": "X-App-Token", "flow": "Authorization",
+            "structure": "Authorization", "stock": "Authorization"}
+
 SOURCES = {
-    "agent":   {"url": os.environ.get("AGENT_URL", "").rstrip("/"),
-                "token": os.environ.get("AGENT_TOKEN", ""), "header": "Authorization"},
-    "zerodte": {"url": os.environ.get("ZERO_DTE_URL", "").rstrip("/"),
-                "token": os.environ.get("ZERO_DTE_TOKEN", ""), "header": "X-App-Token"},
-    "flow":    {"url": os.environ.get("FLOW_URL", "").rstrip("/"),
-                "token": os.environ.get("FLOW_TOKEN", ""), "header": "Authorization"},
-    "structure": {"url": os.environ.get("STRUCTURE_URL", "").rstrip("/"),
-                  "token": os.environ.get("STRUCTURE_TOKEN", ""), "header": "Authorization"},
-    # Read only by the structure adapter for the quant column — not a page source.
-    "stock":   {"url": os.environ.get("STOCK_URL", "").rstrip("/"),
-                "token": os.environ.get("STOCK_TOKEN", ""), "header": "Authorization"},
+    name: {"url": f"local://{name}" if name in _AVAILABLE else "", "token": "", "header": hdr}
+    for name, hdr in _HEADERS.items()
 }
 
 
@@ -35,3 +44,16 @@ def enabled(name: str) -> bool:
 
 def any_live() -> bool:
     return any(s["url"] for s in SOURCES.values())
+
+
+def refresh() -> None:
+    """Recompute source availability from the engines registry (e.g. after a key
+    is set at runtime, or in a test). Cheap; safe to call on each composition."""
+    global _AVAILABLE
+    try:
+        import engines as eng
+        _AVAILABLE = eng.available_sources()
+    except Exception:
+        _AVAILABLE = set()
+    for name in SOURCES:
+        SOURCES[name]["url"] = f"local://{name}" if name in _AVAILABLE else ""
