@@ -244,7 +244,9 @@ def build_user_message(market_data: dict, macro_data: dict, options_data: dict) 
 
 def synthesize(market_data: dict, macro_data: dict, options_data: dict,
                api_key: str | None = None) -> dict:
-    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    # .strip() defends against a trailing space/newline on the env var (a common
+    # paste artifact in hosting dashboards), which otherwise 401s as an invalid token.
+    api_key = (api_key or os.environ.get("ANTHROPIC_API_KEY") or "").strip()
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
 
