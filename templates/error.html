@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ code }} — {{ site_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<div class="main" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:70vh; text-align:center; gap:14px;">
+  <div style="font-size:0.78em; font-weight:700; letter-spacing:0.18em; color:var(--blue); text-transform:uppercase;">◆ {{ site_name }}</div>
+  <div style="font-size:3em; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums;">{{ code }}</div>
+  <div style="font-size:0.95em; color:var(--muted); max-width:420px; line-height:1.6;">{{ message }}</div>
+  {% if code != 401 %}<a class="src" style="margin-top:8px;" href="{{ url_for('index') }}">← Back to the desk</a>{% endif %}
+</div>
+</body>
+</html>

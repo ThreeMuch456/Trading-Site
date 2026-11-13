@@ -59,6 +59,17 @@ def test_agent_maps_brief_and_risk():
     print("  agent: brief+risk, EOD grades+Brier, track record, calibration, merge OK")
 
 
+def test_routes_smoke():
+    import app as appmod
+    with appmod.app.test_client() as cl:
+        for p in ("/", "/gameplan", "/intraday", "/flow", "/flow/all",
+                  "/flow/ticker/NVDA", "/structure", "/eod", "/healthz"):
+            assert cl.get(p).status_code == 200, p
+        r = cl.get("/not-a-page")
+        assert r.status_code == 404 and "404" in r.get_data(as_text=True)   # styled error page
+    print("  routes: all pages 200, 404 styled")
+
+
 def test_app_token_gate():
     import os
     import app as appmod
@@ -284,7 +295,8 @@ if __name__ == "__main__":
     for fn in (test_agent_maps_brief_and_risk, test_zerodte_maps_levels_and_touches,
                test_flow_maps_waves_eod_and_skew, test_flow_sweeps_and_ticker,
                test_structure_maps_recs_rotation_quant,
-               test_store_logs_and_grades, test_app_token_gate, test_derive_overview_cards,
+               test_store_logs_and_grades, test_routes_smoke, test_app_token_gate,
+               test_derive_overview_cards,
                test_fetch_fails_soft, test_sample_mode_when_unconfigured):
         fn()
     print("ALL PASS")

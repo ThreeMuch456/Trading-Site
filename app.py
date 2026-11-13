@@ -56,9 +56,22 @@ def _gate():
                 or request.headers.get("X-App-Token", "")
                 or request.cookies.get("desk_token", ""))
     if supplied != token:
-        return ("unauthorized", 401)
+        return render_template(
+            "error.html", code=401,
+            message="This desk is private. Append ?token=… to your link to sign in."), 401
     g.set_desk_cookie = request.args.get("token") == token
     return None
+
+
+@app.errorhandler(404)
+def _not_found(_e):
+    return render_template("error.html", code=404, message="That page isn't part of the desk."), 404
+
+
+@app.errorhandler(500)
+def _server_error(_e):
+    return render_template("error.html", code=500,
+                           message="Something went wrong composing the desk. Try again shortly."), 500
 
 
 @app.after_request
@@ -71,8 +84,15 @@ def _persist_token(resp):
 @app.context_processor
 def inject_globals():
     # Shared by every template: site name, nav, and the current snapshot.
-    # get_snapshot() is cached (DESK_CACHE_TTL) and fails soft to sample data.
-    return {"site_name": SITE_NAME, "nav_items": NAV_ITEMS, "s": get_snapshot()}
+    # get_snapshot() is cached (DESK_CACHE_TTL) and fails soft to sample data; the
+    # try/except is a last resort so a context-processor error can't break even the
+    # error page itself.
+    try:
+        snap = get_snapshot()
+    except Exception:
+        snap = {"mock": True, "degraded": {}, "meta": "",
+                "session": {"phase": "—", "phase_class": "closed", "clock": "", "date_label": ""}}
+    return {"site_name": SITE_NAME, "nav_items": NAV_ITEMS, "s": snap}
 
 
 @app.route("/")
