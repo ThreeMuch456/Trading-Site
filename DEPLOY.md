@@ -1,93 +1,132 @@
-# Railway Deployment — TODO / runbook
+# Railway Deployment — Trading Desk (single unified service)
 
-The desk is an **aggregator**: it reads the other tools' JSON APIs. So hosting means
-deploying each upstream service **and** the desk, wiring the desk to their URLs. All
-six are separate Railway services in one Railway **project** (shared variables live at
-the project level).
+The desk is now **one deploy**. The five sibling tools' compute is vendored into the
+`engines/` package and runs in-process; the desk calls Massive/Anthropic/FRED
+directly. There are **no upstream service URLs** any more — one Railway service, one
+volume, one scheduler.
+
+> Migrating from the old six-service setup? Delete the five upstream services and
+> their URL/token variables. Only this service remains. The standalone repos stay as
+> source-of-truth but are no longer deployed.
 
 ## 0. Prerequisites
-- [ ] Feature branches pushed to GitHub (`github.com/ThreeMuch456`) — merge each into its
-      repo's default branch (or point Railway at the branch):
-  - `Trading-Site` → `phase-0-shell` (Phases 0–8)
-  - `Trading-Agent` → `add-desk-json-endpoints` (`/api/brief.json`, `/api/performance.json`)
-  - `Structure-Identifier` → `add-recs-json-endpoint` (`/api/recs.json`, `/api/learning.json`)
-  - `0DTE-Assistant` → `add-touch-stats-endpoint` (`/api/touch-stats.json`)
-- [ ] Massive API key; Anthropic API key.
+- [ ] `Trading-Site` `main` pushed to GitHub (`github.com/ThreeMuch456`).
+- [ ] **Massive API key** (the one key that turns the desk live).
+- [ ] **Anthropic API key** (morning brief). **FRED API key** (optional — macro calendar).
 
-## 1. Project-level shared variables (set once, reference per service)
-- [ ] `MASSIVE_API_KEY` — referenced by 0DTE, Options-Flow, Structure (`${{shared.MASSIVE_API_KEY}}`)
-- [ ] `ANTHROPIC_API_KEY` — referenced by Trading-Agent, Stock-Analysis
-- [ ] Decide a shared secret for cross-service gating (see tokens below).
+## 1. Create the service
+- [ ] New Railway service from `Trading-Site`. Builder: **Nixpacks** (auto).
+- [ ] Start command is pinned in `Procfile` / `railway.json`:
+      `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1`.
+- [ ] **Keep it at 1 worker.** The scheduler, the 60 s snapshot cache, and every
+      engine's in-memory state (the frozen 09:30 0DTE baseline, the Flow test client,
+      the loaded Structure result set) all live in-process. A second worker would run
+      a second scheduler and a second set of engines against the same volume.
+- [ ] Healthcheck path: `/healthz` (already set in `railway.json`).
 
-## 2. Deploy the upstream services (each its own Railway service)
-Deploy these **first** — the desk needs their public URLs.
+## 2. Attach one volume
+- [ ] Attach a Railway **volume** (any mount path, e.g. `/data`). That's all — the
+      desk auto-detects `RAILWAY_VOLUME_MOUNT_PATH`, so **every** engine's state lands
+      on it: `flow.db`, `zerodte.sqlite3`, `agent.sqlite3`, `opportunities.db`
+      (Structure), the Structure result pickle + bar cache, and `desk.sqlite3` (the
+      compose-layer journal). Without a volume these live in the image and vanish on
+      every redeploy — losing the learning history that the whole recursive loop
+      depends on.
+- [ ] To override the location explicitly, set `DESK_DATA_DIR=/data` (it wins over the
+      auto-detected path).
 
-| Service | Repo | Needs | Volume | Notes |
-|---|---|---|---|---|
-| Morning Brief | `Trading-Agent` | `ANTHROPIC_API_KEY`, `MASSIVE_API_KEY` | `/data` (journal.db) | `RUN_TOKEN` gates `/run`; brief JSON is public |
-| 0DTE Levels | `0DTE-Assistant` | `MASSIVE_API_KEY` | `/data` (0dte.sqlite3) | **1 worker**, frozen 09:30 baseline; `APP_TOKEN` → desk's `ZERO_DTE_TOKEN` |
-| Options Flow | `Options-Flow-Scanner` | `MASSIVE_API_KEY` | optional | serves `/api/index-etfs*`, `/api/rotation`, `/api/sweeps`, `/api/ticker/<sym>` |
-| Structure | `Structure-Identifier` | `MASSIVE_API_KEY` (for `/live`) | **`/app/data`** (opportunities.db — irreplaceable) | `EXPORT_TOKEN` → desk's `STRUCTURE_TOKEN`; 1 worker |
-| Stock Deep-Dive | `Stock-Analysis` | `ANTHROPIC_API_KEY` | none (cache only) | `/api/analyze?ai=0` is data-only |
-
-- [ ] Each: generate a public domain, confirm `GET /healthz` (or `/health`) returns 200.
-- [ ] Record each service's public URL for step 3.
-
-## 3. Deploy the desk (`Trading-Site`)
-- [ ] New service from `Trading-Site`. Build: Nixpacks; start `gunicorn app:app` (see `railway.json`/`Procfile`).
-- [ ] **Keep it at 1 worker** when `DESK_SCHEDULER=1` (scheduler + cache live in-process).
-- [ ] Set service variables (see `.env.example`):
-  - `AGENT_URL`, `ZERO_DTE_URL` + `ZERO_DTE_TOKEN`, `FLOW_URL`, `STRUCTURE_URL` + `STRUCTURE_TOKEN`, `STOCK_URL`
-  - `APP_TOKEN` — gate the public desk (then open it at `?token=…`, cookie persists)
-  - `DESK_SCHEDULER=1`, `DESK_TZ=America/New_York`
-  - `DESK_DB_PATH=/data/desk.sqlite3`
-- [ ] **Attach a volume at `/data`** so the desk journal (learning store) survives redeploys.
-- [ ] The desk needs **no** `MASSIVE_API_KEY`; it only needs `ANTHROPIC_API_KEY` if the optional
-      intraday micro-summary is ever enabled (not currently used).
-
-## 4. Verify end-to-end
-- [ ] Desk `/healthz` → `{"live": true, "sources_degraded": {}}` (empty = all sources reachable).
-- [ ] Each page loads with live data; a down source shows the degraded banner, not a 500.
-- [ ] After a full session: EOD page shows graded outcomes + the Track Record accrues (desk journal grows).
-
-## 5. Post-deploy / nice-to-have
-- [ ] Set `RETAIN_*` / volume sizes per each tool's README (0DTE prints are bulky).
-- [ ] Confirm the daily schedules fire (desk 09:35/15-min/16:15; Structure 17:00 + 09:15 re-price; Agent AM).
-- [ ] Consider a status page or uptime check on each `/healthz`.
-
-## Variables cheat-sheet (exact names)
-
-**Two shared secrets you invent** and reuse across services:
-`<ZERO_DTE_SECRET>` (0DTE `APP_TOKEN` = desk `ZERO_DTE_TOKEN`) ·
-`<STRUCTURE_SECRET>` (Structure `EXPORT_TOKEN` = desk `STRUCTURE_TOKEN`).
-Project shared: `MASSIVE_API_KEY`, `ANTHROPIC_API_KEY`.
-
-| Service | Required | Volume | Notes |
-|---|---|---|---|
-| **Trading-Agent** | `ANTHROPIC_API_KEY`, `FRED_API_KEY`, `ENABLE_SCHEDULER=1` | `/data` → `DB_PATH=/data/journal.db` | `MASSIVE_API_KEY` optional (yfinance fallback); `RUN_TOKEN` optional (gates `/run` only — brief JSON is public, so desk needs no AGENT_TOKEN) |
-| **0DTE-Assistant** | `MASSIVE_API_KEY`, `APP_TOKEN=<ZERO_DTE_SECRET>` | `/data` → `DB_PATH=/data/0dte.sqlite3` | 1 worker (its railway.json pins it); gates every route |
-| **Options-Flow-Scanner** | `MASSIVE_API_KEY`, `SECRET_KEY=<random>` | `/data` (or a Railway Postgres via `DATABASE_URL`) | endpoints are public → desk needs no FLOW_TOKEN; tune thresholds via its many `ETF_*`/`ROTATION_*` vars (all have defaults) |
-| **Structure-Identifier** | `EXPORT_TOKEN=<STRUCTURE_SECRET>` | `/app/data` (irreplaceable learning DB) | `MASSIVE_API_KEY` only for the `/live` monitor; `RUN_SCHEDULER=true` default |
-| **Stock-Analysis** | — | none | `ANTHROPIC_API_KEY` optional and NOT needed for the desk (it calls `?ai=0`) |
-| **Trading-Site (desk)** | the 5 URLs + 2 tokens below | `/data` → `DESK_DB_PATH=/data/desk.sqlite3` | 1 worker; `APP_TOKEN` gates the desk itself |
-
-**Desk service variables** (the 5 upstream URLs are each service's Railway public domain):
+## 3. Set variables
+See `.env.example` for the full annotated list. The minimum to go fully live:
 ```
-AGENT_URL=https://<trading-agent>.up.railway.app
-ZERO_DTE_URL=https://<0dte>.up.railway.app     ZERO_DTE_TOKEN=<ZERO_DTE_SECRET>
-FLOW_URL=https://<options-flow>.up.railway.app
-STRUCTURE_URL=https://<structure>.up.railway.app   STRUCTURE_TOKEN=<STRUCTURE_SECRET>
-STOCK_URL=https://<stock-analysis>.up.railway.app
-APP_TOKEN=<desk-secret>            # then open the desk at ?token=<desk-secret>
-DESK_SCHEDULER=1  DESK_TZ=America/New_York  DESK_DB_PATH=/data/desk.sqlite3
+MASSIVE_API_KEY=<key>              # turns every live engine on
+ANTHROPIC_API_KEY=<key>            # morning brief (Gameplan/Overview AI, EOD grading)
+FRED_API_KEY=<key>                 # optional — macro calendar in the brief
+APP_TOKEN=<invent-a-secret>        # gate the public desk; then open it at ?token=<secret>
+DESK_SCHEDULER=1                   # run the scheduler + ALL engine background jobs
+DESK_TZ=America/New_York           # tz for the desk's own refresh crons
+MASSIVE_RPM=<see §Massive budget>  # per-engine request budget (default 5)
 ```
-The desk references **no** `MASSIVE_API_KEY`/`ANTHROPIC_API_KEY`. In Railway you can write a URL as
-`https://${{<ServiceName>.RAILWAY_PUBLIC_DOMAIN}}` instead of pasting the domain.
+Optional schedule overrides (defaults are sensible): `BRIEF_HOUR` / `BRIEF_TZ` /
+`GRADE_HOUR` / `GRADE_MINUTE` (morning brief + grade); Structure's screen/reprice
+times live in `engines/structure/config.yaml`.
 
-## Known gaps (code TODO, not deploy)
-- Rotation uses OFS flow-based `/api/rotation`; a price-based RRG (lift from Sector-Scanner) is optional.
-- Sector-Scanner (Streamlit) is intentionally off the critical path; not deployed unless its RRG is wanted.
-- The desk EOD summary paragraph is deterministic; an optional AI intraday micro-summary is unused.
+### What each key turns on
+| Key | Engines it activates | Without it |
+|---|---|---|
+| `MASSIVE_API_KEY` | 0DTE levels, Flow, Structure (GEX), stock quant | desk renders **sample** data |
+| `ANTHROPIC_API_KEY` | Morning brief + EOD bias grading (agent) | Gameplan/Overview/EOD AI stay sample |
+| `FRED_API_KEY` | macro calendar inside the brief | brief notes the calendar feed is degraded |
+| (none) | — | fully navigable sample desk |
 
-The BUILD-PLAN is otherwise fully realized: six live-wired pages, recursive learning in every page,
-a desk-owned learning journal with session history, fail-soft fetch, opt-in scheduler, APP_TOKEN gate.
+`stock` is enrichment-only (it feeds Structure's quant column); it never flips the
+desk live on its own.
+
+## 4. Scheduler — one process owns every cadence
+With `DESK_SCHEDULER=1` a single `BackgroundScheduler` runs, in this order of wiring:
+
+| Job(s) | When (tz) | What |
+|---|---|---|
+| desk `gameplan` / `intraday` / `eod` | 09:35 · 10–15 every 15 min · 16:15 ET | recompose + journal the snapshot off the request path |
+| `flow-scan` (+ prime) | every `SCAN_INTERVAL_MINUTES`, market-hours gated | Flow scanner writes sweeps → `flow.db` |
+| `zerodte-underlying` / `-options` / `-maintenance` (+ prime) | 15 s / 60 s, 09:00–16:20 ET | 0DTE pollers drive the engine loop; daily prune |
+| `agent-brief` (+ :15/:30 retries) / `agent-autograde` (+ startup prime) | 05:00 `BRIEF_TZ` / 13:35 | generate the Claude brief; grade yesterday open→close |
+| `structure-screen` / `structure-reprice` (+ startup prime) | 17:00 / 09:15 ET, mon–fri | EOD thin-zone screen + learning log; pre-open re-price |
+
+**First boot:** the one-shot *prime* jobs fire immediately, so a fresh deploy fills
+in within a minute or two (the brief generates if today's is missing; Structure runs
+its first screen; 0DTE/Flow begin polling if inside market hours) rather than waiting
+for the next cron. All heavy primes run off the request path.
+
+Holiday/weekend handling is built in: each engine gates on the market calendar (the
+0DTE poll window, the Structure NYSE-calendar guard, the brief's next-session preview
+framing), so the crons can fire every weekday safely.
+
+## 5. Massive budget (per-engine; the stagger that keeps it under the limit)
+There is **no single shared Massive limiter** — each live consumer (0DTE pollers, the
+Flow scanner, Structure's GEX, the stock enrichment) applies `MASSIVE_RPM` as its
+*own* rolling-minute cap, and each already prioritises its critical calls (e.g. 0DTE
+reserves budget for the chain snapshot over best-effort print fetches).
+
+The cadences are **largely staggered**, so sustained overlap is limited:
+- **Morning brief** 08:00 ET (pre-market) → before the 0DTE poll window opens.
+- **0DTE pollers** 09:00–16:20 ET → the dominant, continuous consumer.
+- **Flow scanner** periodic, market-hours → the one real overlap with 0DTE.
+- **Structure screen + GEX** 17:00 ET (post-close) → after 0DTE's window.
+- **Autograde** 16:35 ET → after 0DTE's window.
+- **Stock quant** on-demand when a page composes (brief fan-out) → short bursts.
+
+The only sustained concurrency is **0DTE + the Flow scanner during market hours**. So
+set `MASSIVE_RPM` to roughly **half** your account's true per-minute limit to leave
+headroom for that overlap (e.g. account allows ~10/min → `MASSIVE_RPM=5`). The
+limiters queue rather than fail, so oversubscription shows up as polls arriving a
+little late, not as errors; `429`s from the provider mean the account cap (not
+`MASSIVE_RPM`) was exceeded — lower `MASSIVE_RPM`.
+
+## 6. Verify end-to-end
+- [ ] `GET /healthz` → `{"status":"ok","live":true,"sources_degraded":{}}` once the
+      primes have run (empty `sources_degraded` = every live engine reachable).
+- [ ] Each page renders live; a degraded engine shows its sample section + a banner,
+      never a 500.
+- [ ] After a full session: the EOD page shows graded outcomes and the Track Record
+      accrues (0DTE touch calibration, Structure win-rates, brief Brier, desk journal
+      all grow on the volume).
+- [ ] Logs show `desk scheduler started` followed by each engine's
+      `… jobs registered` line, and the prime jobs running once.
+
+## 7. Local run
+```
+pip install -r requirements.txt
+cp .env.example .env     # fill in MASSIVE_API_KEY / ANTHROPIC_API_KEY (+ DESK_SCHEDULER=1 to test crons)
+python app.py            # http://localhost:8000
+```
+With no keys the desk runs in full sample mode (every page navigable). State is
+written under `./data/` unless `DESK_DATA_DIR` is set.
+
+## Notes / optional later
+- Sector-Scanner (Streamlit RRG) stays off the critical path — OFS `/api/rotation`
+  covers sector rotation; a price-based RRG is an optional future add.
+- The EOD summary paragraph is deterministic; an AI intraday micro-summary is unused.
+- A true cross-engine shared Massive limiter was considered and deliberately **not**
+  built: flow (sync) and 0DTE (async) use different clients whose own critical-vs-
+  best-effort prioritisation a shared FIFO would flatten, risking the 0DTE chain
+  fetch. Per-engine budgets + the stagger above are the chosen control (see §5).

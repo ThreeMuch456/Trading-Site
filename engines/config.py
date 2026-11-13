@@ -50,8 +50,16 @@ RISK_FREE_RATE = float(os.getenv("RISK_FREE_RATE", "0.04"))
 # One Railway volume holds every engine's SQLite file. Each engine keeps its own
 # schema in its own file under this directory (lowest-risk port — no cross-tool
 # schema merge). DESK_DB_PATH (the compose-layer journal) lives here too.
-DATA_DIR = os.getenv("DESK_DATA_DIR",
-                     os.path.join(os.path.dirname(os.path.dirname(__file__)), "data"))
+#
+# Resolution order: DESK_DATA_DIR (explicit) → RAILWAY_VOLUME_MOUNT_PATH (the
+# mounted volume Railway auto-injects) → ./data (local dev). Honouring the Railway
+# path directly means attaching a volume is enough to land EVERY engine's state on
+# it — without it, flow/zerodte/agent would write to the ephemeral image dir while
+# the vendored structure engine (which reads RAILWAY_VOLUME_MOUNT_PATH on its own)
+# wrote to the volume, silently splitting the data across a redeploy boundary.
+DATA_DIR = (os.getenv("DESK_DATA_DIR")
+            or os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
+            or os.path.join(os.path.dirname(os.path.dirname(__file__)), "data"))
 
 
 def db_path(filename: str) -> str:
