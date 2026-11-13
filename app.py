@@ -162,11 +162,24 @@ def eod():
 @app.route("/healthz")
 def healthz():
     s = get_snapshot()
-    return {
+    out = {
         "status": "ok",
         "live": s.get("live", False),
         "sources_degraded": s.get("degraded", {}),
-    }, 200
+    }
+    # Surface the morning-brief generator's last-run state so a failed brief is
+    # diagnosable from here rather than only from the deploy logs. The adapter can
+    # only report "no brief generated yet" (the read side); the WRITE side's
+    # stage-tagged error lives on the agent engine's run-state.
+    try:
+        from engines import agent as _agent
+        rs = _agent._run_state
+        out["agent_brief"] = {"status": rs.get("status"),
+                              "detail": rs.get("error") or rs.get("message") or None,
+                              "last_run": rs.get("last_run")}
+    except Exception:
+        pass
+    return out, 200
 
 
 if __name__ == "__main__":
