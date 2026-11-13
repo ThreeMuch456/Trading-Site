@@ -17,8 +17,10 @@ httpx
 anthropic
 # engines/structure (vendored Structure-Identifier) — thin-zone screen + learning DB.
 # pandas: volume-profile/flags/gex math; scipy: zone detection; lxml: sp500/ndx100
-# universe via pandas.read_html; pyyaml: config.yaml. (Charts/report deps omitted.)
+# universe via pandas.read_html; pyyaml: config.yaml; tqdm: screen/universe progress.
+# (Charts/report deps — matplotlib/plotly — omitted; those modules aren't vendored.)
 pandas
 scipy
 lxml
 pyyaml
+tqdm
