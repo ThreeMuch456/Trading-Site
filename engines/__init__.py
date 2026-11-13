@@ -41,7 +41,7 @@ _JOB_REGISTRARS: list = []
 _ENGINE_MODULES: list[str] = [
     "engines.stock",        # Phase 1
     "engines.flow",         # Phase 2
-    # "engines.zerodte",    # Phase 3
+    "engines.zerodte",      # Phase 3
     # "engines.agent",      # Phase 4
     # "engines.structure",  # Phase 5
 ]

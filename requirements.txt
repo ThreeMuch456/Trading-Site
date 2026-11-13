@@ -10,3 +10,6 @@ numpy
 # engines/flow (vendored Options-Flow-Scanner) — SQLAlchemy sweep DB + ET clock
 SQLAlchemy
 pytz
+# engines/zerodte (vendored 0DTE-Assistant) — async Massive client (httpx) on a
+# background event loop; yfinance underlying feed (pandas via yfinance above).
+httpx
