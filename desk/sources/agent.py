@@ -98,12 +98,7 @@ def merge(s: dict, c: dict) -> None:
             d = cal.get(t["sym"])
             if d:
                 t["calib"] = d
-    # Keep the Overview gameplan snapshot card's risk badge in sync too.
-    for card in s.get("overview_cards", []):
-        if card.get("href") == "eod":
-            for st in card.get("stats", []):
-                if st.get("l") == "Next risk":
-                    st["badge"] = (c["risk_rating"], "var(--surface2)", "var(--muted)")
+    # (Overview cards are recomputed centrally in fetch._derive_overview_cards.)
 
 
 # ---- mapping helpers ----

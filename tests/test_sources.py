@@ -238,6 +238,20 @@ def test_structure_maps_recs_rotation_quant():
     print("  structure: recs+rotation+quant+win-rates mapped, track line, merge OK")
 
 
+def test_derive_overview_cards():
+    s = sample_data.snapshot()
+    fetch._derive_overview_cards(s)
+    cards = {c["href"]: c for c in s["overview_cards"]}
+    g = cards["gameplan"]["stats"]
+    assert any(st.get("l") == "SPY regime" and st["badge"][0] == "PIN" for st in g)
+    it = cards["intraday"]["stats"]
+    assert any(st.get("l") == "Touches today" and st["v"] == str(len(s["intraday"]["touches"])) for st in it)
+    e = cards["eod"]["stats"]
+    assert any(st.get("l") == "Plan grade" and st["v"] == "Good" for st in e)       # 2/3 correct
+    assert any(st.get("l") == "Carried" and st["v"] == "4" for st in e)
+    print("  overview: cards derived from live snapshot (regimes / touches / grade)")
+
+
 def test_fetch_fails_soft(monkeypatch=None):
     from desk import config
     # Enable just the agent source, then make its fetch blow up.
@@ -270,7 +284,7 @@ if __name__ == "__main__":
     for fn in (test_agent_maps_brief_and_risk, test_zerodte_maps_levels_and_touches,
                test_flow_maps_waves_eod_and_skew, test_flow_sweeps_and_ticker,
                test_structure_maps_recs_rotation_quant,
-               test_store_logs_and_grades, test_app_token_gate,
+               test_store_logs_and_grades, test_app_token_gate, test_derive_overview_cards,
                test_fetch_fails_soft, test_sample_mode_when_unconfigured):
         fn()
     print("ALL PASS")

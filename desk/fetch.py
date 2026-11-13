@@ -53,10 +53,68 @@ def get_snapshot(force: bool = False) -> dict:
         except Exception as exc:  # a mapping bug must not 500 the page
             degraded[name] = f"merge error: {type(exc).__name__}: {exc}"
 
+    _derive_overview_cards(s)
     s["degraded"] = degraded
     _record_learning(s, degraded)
     _store(s, now)
     return s
+
+
+_REGIME_COLOR = {"pin": "blue", "trend": "amber", "transition": "purple"}
+
+
+def _derive_overview_cards(s: dict) -> None:
+    """Recompute the Overview snapshot cards from the live composed snapshot, so the
+    home page summarizes real data rather than sample text. Flow/Structure cards are
+    filled by their own adapters (which hold the raw numbers); this covers the rest."""
+    try:
+        cards = {c.get("href"): c for c in s.get("overview_cards", [])}
+        tickers = s.get("tickers", [])
+        by = {t["sym"]: t for t in tickers}
+
+        def regime_badge(t):
+            col = _REGIME_COLOR.get(t.get("regime_class"), "purple")
+            return (t.get("regime", "—"), f"var(--{col}-dim)", f"var(--{col})")
+
+        g = cards.get("gameplan")
+        if g and tickers:
+            obs = [t.get("observed") for t in tickers if isinstance(t.get("observed"), (int, float))]
+            obs_avg = round(sum(obs) / len(obs)) if obs else None
+            st = []
+            for sym in ("SPY", "QQQ"):
+                if by.get(sym):
+                    st.append({"l": f"{sym} regime", "badge": regime_badge(by[sym])})
+            st.append({"l": "Observed", "v": f"{obs_avg}%" if obs_avg is not None else "—",
+                       "v_class": "up" if (obs_avg or 0) >= 60 else "flat"})
+            g["stats"] = st
+
+        it = cards.get("intraday")
+        if it:
+            intr = s.get("intraday", {}) or {}
+            skew = intr.get("skew", []) or []
+            calls = sum(1 for k in skew if (k.get("call_pct") or 0) >= 50)
+            lean = "Calls" if (skew and calls > len(skew) / 2) else ("Puts" if skew else "—")
+            it["stats"] = [
+                {"l": "Plan status", "v": "Tracking", "v_class": "up"},
+                {"l": "Touches today", "v": str(len(intr.get("touches", []) or [])), "v_class": ""},
+                {"l": "Flow lean", "v": lean, "v_class": "up" if lean == "Calls" else ("down" if lean == "Puts" else "flat")},
+            ]
+
+        e = cards.get("eod")
+        if e:
+            eod = s.get("eod", {}) or {}
+            grades = eod.get("grades", []) or []
+            correct = sum(1 for x in grades if x.get("correct") == "Yes")
+            total = sum(1 for x in grades if x.get("correct") in ("Yes", "No"))
+            grade = ("Good" if correct >= total - correct else "Mixed") if total else "—"
+            e["stats"] = [
+                {"l": "Plan grade", "v": grade, "v_class": "up" if grade == "Good" else "flat"},
+                {"l": "Next risk", "badge": (s.get("context", {}).get("risk_rating", "—"),
+                                             "var(--surface2)", "var(--muted)")},
+                {"l": "Carried", "v": str(len(eod.get("watchlist", []) or [])), "v_class": ""},
+            ]
+    except Exception:
+        pass   # the home cards are cosmetic — never break the page over them
 
 
 def _record_learning(s: dict, degraded: dict) -> None:
