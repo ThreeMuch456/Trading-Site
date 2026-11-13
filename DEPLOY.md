@@ -6,11 +6,12 @@ six are separate Railway services in one Railway **project** (shared variables l
 the project level).
 
 ## 0. Prerequisites
-- [ ] GitHub repos pushed (desk + the 5 tools). Branches currently in flight:
-  - `Trading-Site` → `phase-0-shell` (Phases 0–7)
+- [ ] Feature branches pushed to GitHub (`github.com/ThreeMuch456`) — merge each into its
+      repo's default branch (or point Railway at the branch):
+  - `Trading-Site` → `phase-0-shell` (Phases 0–8)
   - `Trading-Agent` → `add-desk-json-endpoints` (`/api/brief.json`, `/api/performance.json`)
-  - `Structure-Identifier` → `add-recs-json-endpoint` + `/api/learning.json`
-  - **Merge each feature branch into its repo's default branch** (or point Railway at the branch).
+  - `Structure-Identifier` → `add-recs-json-endpoint` (`/api/recs.json`, `/api/learning.json`)
+  - `0DTE-Assistant` → `add-touch-stats-endpoint` (`/api/touch-stats.json`)
 - [ ] Massive API key; Anthropic API key.
 
 ## 1. Project-level shared variables (set once, reference per service)
@@ -55,7 +56,6 @@ Deploy these **first** — the desk needs their public URLs.
 - [ ] Consider a status page or uptime check on each `/healthz`.
 
 ## Known gaps (code TODO, not deploy)
-- Intraday page has no learning element yet (would need a 0DTE touch-calibration endpoint).
 - Overview snapshot cards are partly live (risk, flow, structure counts) but still mostly sample summaries.
 - Rotation uses OFS flow-based `/api/rotation`; a price-based RRG (lift from Sector-Scanner) is optional.
 - Snapshot history/replay for the desk is not built (would use the `/data` volume).
