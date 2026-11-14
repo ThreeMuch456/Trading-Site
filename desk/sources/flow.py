@@ -38,6 +38,14 @@ def collect(cfg: dict, timeout: float) -> dict:
               sorted(alerts, key=lambda x: (x.get("score") or 0), reverse=True)][:25]
     rollup = _rollup(alerts, order)
 
+    # EOD predictiveness learning loop (flow engine Phase A–D): how well the day's
+    # directional flow called the realized ETF move, plus the learned metric +
+    # threshold. Guarded — a learning hiccup must never degrade the live Flow page.
+    try:
+        predict = _predict(http_get_json(base + "/api/flow-learning", tok, hdr, timeout))
+    except Exception:
+        predict = {"headline": "", "n_sessions": 0, "rows": []}
+
     surge_count = len(wave_banners)
     fresh_premium = sum(w.get("premium") or 0 for w in waves if w.get("is_surge"))
     call_leans = sum(1 for e in (eod.get("tickers") or []) if e.get("direction") == "call")
@@ -48,13 +56,58 @@ def collect(cfg: dict, timeout: float) -> dict:
                  "session_skew": session_skew, "rollup": rollup,
                  "ranked": ranked, "eod": eod_chips},
         "intraday_skew": intraday_skew,
+        "predict": predict,
         "card": {"surge_count": surge_count, "fresh_premium": _usd(fresh_premium),
                  "eod_lean": f"Calls {call_leans}/{eod_total}" if eod_total else "—"},
     }
 
 
+# Display labels for the predictiveness table.
+_HORIZON_LABEL = {"to_close": "→ close", "open_close": "open→close", "next_day": "→ next day"}
+_METRIC_LABEL = {"score_weighted_skew": "score-wtd skew", "net_premium_skew": "premium skew"}
+
+
+def _dir_class(v, up_at) -> str:
+    """up/down/flat colour class for a signed value against an 'up' threshold."""
+    if v is None:
+        return "flat"
+    return "up" if v >= up_at else ("down" if v < 0 else "flat")
+
+
+def _predict(rep: dict) -> dict:
+    """Map the flow engine's /api/flow-learning report into the EOD-page table."""
+    rows = []
+    for b in (rep.get("buckets") or []):
+        t = b.get("tuning")
+        hit = b.get("hit_rate")
+        corr = b.get("skew_corr")
+        if t:
+            metric = _METRIC_LABEL.get(t.get("metric"), t.get("metric") or "—")
+            threshold = f"{t['threshold']:.2f}" if t.get("threshold") is not None else "—"
+            edge = f"{t['edge']:+.0f}%" if t.get("edge") is not None else "—"
+            sig = bool(t.get("significant"))
+            edge_class = _dir_class(t.get("edge"), 0.01)
+        else:
+            metric = "—" if b.get("ready") else "accumulating"
+            threshold, edge, sig, edge_class = "—", "—", False, "flat"
+        rows.append({
+            "cutoff": b.get("cutoff", "—"),
+            "horizon": _HORIZON_LABEL.get(b.get("horizon"), b.get("horizon") or "—"),
+            "n": b.get("n_directional") or 0,
+            "hit": f"{hit:.0f}%" if isinstance(hit, (int, float)) else "—",
+            "hit_class": _dir_class(hit, 55),
+            "corr": f"{corr:+.2f}" if isinstance(corr, (int, float)) else "—",
+            "metric": metric, "threshold": threshold,
+            "edge": edge, "edge_class": edge_class, "sig": sig,
+        })
+    return {"headline": rep.get("headline", ""),
+            "n_sessions": rep.get("n_sessions", 0), "rows": rows}
+
+
 def merge(s: dict, c: dict) -> None:
     s["flow"].update(c["flow"])
+    if c.get("predict"):
+        s.setdefault("eod", {})["flow_predict"] = c["predict"]
     if c["intraday_skew"]:
         s["intraday"]["skew"] = c["intraday_skew"]
     # Keep the Overview flow snapshot card honest.

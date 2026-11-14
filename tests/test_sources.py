@@ -145,8 +145,23 @@ def test_flow_maps_waves_eod_and_skew():
         "/api/index-etfs/eod": _load("index_etfs_eod.json"),
         "/api/index-etfs": _load("index_etfs.json"),
     }
+    learning = {
+        "n_sessions": 30, "min_samples": 20,
+        "headline": "Most predictive: 10:30 → to_close 64% over 28 calls",
+        "buckets": [
+            {"cutoff": "10:30", "horizon": "to_close", "n": 30, "n_directional": 28,
+             "ready": True, "hit_rate": 64.3, "skew_corr": 0.38, "sw_corr": 0.44,
+             "tuning": {"metric": "score_weighted_skew", "threshold": 0.35,
+                        "hit_rate_above": 68.0, "edge": 18.0, "significant": True}},
+            {"cutoff": "eod", "horizon": "next_day", "n": 12, "n_directional": 11,
+             "ready": False, "hit_rate": 54.5, "skew_corr": 0.1, "sw_corr": 0.08,
+             "tuning": None},
+        ],
+    }
 
     def dispatch(url, *a, **k):
+        if url.endswith("/api/flow-learning"):
+            return learning
         for path in ("/api/index-etfs/waves", "/api/index-etfs/eod", "/api/index-etfs"):
             if url.endswith(path):
                 return fixtures[path]
@@ -184,13 +199,22 @@ def test_flow_maps_waves_eod_and_skew():
     assert roll["SPY"]["call_pct"] == 57 and roll["SPY"]["contracts"] == 2
     assert roll["SPY"]["fresh"] == "+900C / +0P" and roll["QQQ"]["call_pct"] == 68
 
+    # EOD predictiveness card (the learning loop): mapped + the learned metric shown.
+    pred = c["predict"]
+    assert pred["headline"].startswith("Most predictive")
+    p0 = pred["rows"][0]
+    assert p0["cutoff"] == "10:30" and p0["hit"] == "64%" and p0["sig"] is True
+    assert p0["metric"] == "score-wtd skew" and p0["threshold"] == "0.35" and p0["edge"] == "+18%"
+    assert pred["rows"][1]["metric"] == "accumulating" and pred["rows"][1]["sig"] is False
+
     s = sample_data.snapshot()
     flow.merge(s, c)
     assert s["flow"]["waves"][0]["sym"] == "QQQ"
     assert len(s["intraday"]["skew"]) == 3
+    assert s["eod"]["flow_predict"]["rows"][0]["cutoff"] == "10:30"   # merged onto EOD
     fcard = next(cd for cd in s["overview_cards"] if cd["href"] == "flow")
     assert any(st.get("l") == "Active waves" and st["v"] == "2" for st in fcard["stats"])
-    print("  flow: waves/session-skew/eod mapped, intraday skew + overview card merged")
+    print("  flow: waves/session-skew/eod + predictiveness card mapped, merged onto EOD")
 
 
 def test_flow_sweeps_and_ticker():

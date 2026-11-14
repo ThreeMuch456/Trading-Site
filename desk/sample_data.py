@@ -338,6 +338,21 @@ def snapshot() -> dict:
                 {"date": "2026-11-11", "risk": "Elevated", "biases": "SPY bullish · QQQ bullish · IWM neutral", "top": "NVDA, AVGO, XOM", "graded": "3/3"},
                 {"date": "2026-11-10", "risk": "Moderate", "biases": "SPY neutral · QQQ neutral · IWM bearish", "top": "AMD, SMCI, META", "graded": "1/3"},
             ],
+            "flow_predict": {
+                "headline": "Most predictive: 10:30 → close 64% over 28 calls",
+                "n_sessions": 30,
+                "rows": [
+                    {"cutoff": "10:30", "horizon": "→ close", "n": 28, "hit": "64%", "hit_class": "up",
+                     "corr": "+0.38", "metric": "score-wtd skew", "threshold": "0.35",
+                     "edge": "+18%", "edge_class": "up", "sig": True},
+                    {"cutoff": "14:00", "horizon": "→ close", "n": 26, "hit": "58%", "hit_class": "up",
+                     "corr": "+0.22", "metric": "premium skew", "threshold": "0.40",
+                     "edge": "+9%", "edge_class": "up", "sig": False},
+                    {"cutoff": "eod", "horizon": "→ next day", "n": 12, "hit": "—", "hit_class": "flat",
+                     "corr": "—", "metric": "accumulating", "threshold": "—",
+                     "edge": "—", "edge_class": "flat", "sig": False},
+                ],
+            },
             "risk_next": "Mixed · event-gated",
             "risk_note": (
                 "CPI at 08:30 dominates — the call lean is the base case, but a hot core print voids it and the "

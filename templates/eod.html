@@ -69,6 +69,51 @@
   </div>
 </div>
 
+{% if s.eod.flow_predict %}
+<div class="section">
+  <div class="section-header">
+    <span class="sh-title">② Flow Predictiveness — learned</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="sh-meta">{{ s.eod.flow_predict.headline }}</span>
+      <a href="/flow" class="src">Flow ↗</a>
+    </div>
+  </div>
+  <div class="section-body">
+    {% if s.eod.flow_predict.rows %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th class="l">Cutoff</th><th class="l">Horizon</th><th>Calls</th>
+          <th>Hit-rate</th><th>Skew corr</th><th class="l">Learned metric</th>
+          <th>|Skew| thr</th><th>Edge</th>
+        </tr></thead>
+        <tbody>
+          {% for r in s.eod.flow_predict.rows %}
+          <tr>
+            <td class="l tk">{{ r.cutoff }}</td>
+            <td class="l">{{ r.horizon }}</td>
+            <td>{{ r.n }}</td>
+            <td class="{{ r.hit_class }}">{{ r.hit }}</td>
+            <td>{{ r.corr }}</td>
+            <td class="l">{% if r.sig %}<span class="grade-tag yes">{{ r.metric }}</span>{% else %}{{ r.metric }}{% endif %}</td>
+            <td>{{ r.threshold }}</td>
+            <td class="{{ r.edge_class }}">{{ r.edge }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <div class="note">
+      The day's index-ETF flow skew at each cutoff, scored against the realized move
+      (intraday → close, open→close, overnight). Once a bucket clears the sample bar the
+      loop learns which skew metric and |skew| threshold actually called direction —
+      and feeds that back into the scoring. Buckets read "accumulating" until then.
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- HALF 2 — PROSPECTIVE -->
 <h3 style="font-size:0.82em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--text); margin:22px 0 13px; display:flex; align-items:center; gap:11px;">
   ② Setup for Tomorrow
