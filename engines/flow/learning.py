@@ -85,6 +85,23 @@ CREATE TABLE IF NOT EXISTS flow_outcomes (
     PRIMARY KEY (signal_id, horizon),
     FOREIGN KEY (signal_id) REFERENCES flow_signals (id)
 );
+
+CREATE TABLE IF NOT EXISTS flow_tuning (
+    cutoff         TEXT NOT NULL,
+    horizon        TEXT NOT NULL,
+    metric         TEXT NOT NULL,     -- 'net_premium_skew' | 'score_weighted_skew'
+    direction_sign INTEGER NOT NULL,  -- +1 if higher metric -> up move
+    threshold      REAL NOT NULL,     -- min |metric| for a high-confidence call
+    hit_rate_all   REAL,              -- directional hit-rate over all signals
+    hit_rate_above REAL,              -- hit-rate among |metric| >= threshold
+    n_all          INTEGER NOT NULL,
+    n_above        INTEGER NOT NULL,
+    edge           REAL,              -- hit_rate_above - 50
+    z              REAL,              -- one-sided binomial z (hit_rate_above > 50)
+    significant    INTEGER NOT NULL,  -- 1 if z clears the bar
+    updated_at     TEXT NOT NULL,
+    PRIMARY KEY (cutoff, horizon)
+);
 """
 
 

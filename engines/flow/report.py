@@ -110,9 +110,21 @@ def summary(db_path: str | None = None) -> dict:
     for r in rows:
         groups.setdefault((r["cutoff"], r["horizon"]), []).append(r)
 
+    # The learned tuning (Phase D), keyed by (cutoff, horizon). Lazy import keeps
+    # report <- tune one-way (tune imports report for MIN_SAMPLES / _pearson).
+    from . import tune as _tune
+    try:
+        tuning = _tune.active(db_path)
+    except Exception:
+        tuning = {}
+
     buckets = []
     for (cutoff, horizon), grp in groups.items():
-        buckets.append({"cutoff": cutoff, "horizon": horizon, **_bucket_stats(grp)})
+        t = tuning.get((cutoff, horizon))
+        buckets.append({"cutoff": cutoff, "horizon": horizon, **_bucket_stats(grp),
+                        "tuning": ({"metric": t["metric"], "threshold": t["threshold"],
+                                    "hit_rate_above": t["hit_rate_above"], "edge": t["edge"],
+                                    "significant": bool(t["significant"])} if t else None)})
     buckets.sort(key=lambda b: (_HORIZON_ORDER.get(b["horizon"], 9),
                                 _CUTOFF_ORDER.get(b["cutoff"], 9)))
 

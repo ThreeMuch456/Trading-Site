@@ -153,8 +153,18 @@ def _safe_label() -> None:
         log.exception("flow EOD label failed")
 
 
+def _safe_tune() -> None:
+    """EOD: recompute the learned directional metric + threshold per bucket."""
+    try:
+        from . import tune
+        n = tune.tune()
+        log.info("flow EOD tune updated %d bucket(s)", n)
+    except Exception:
+        log.exception("flow EOD tune failed")
+
+
 def _register_jobs(scheduler, tz) -> None:
-    """Add the scanner + EOD capture/label jobs to the desk scheduler."""
+    """Add the scanner + EOD capture/label/tune jobs to the desk scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
     from . import scanner
@@ -176,7 +186,12 @@ def _register_jobs(scheduler, tz) -> None:
                       CronTrigger(day_of_week="mon-fri", hour=16, minute=45, timezone=tz),
                       id="flow-eod-label", max_instances=1, coalesce=True,
                       replace_existing=True)
-    log.info("flow jobs registered: scan every %d min; EOD capture 16:35 ET, label 16:45 ET",
+    # Re-tune the directional metric + thresholds once the day's outcomes are in.
+    scheduler.add_job(_safe_tune,
+                      CronTrigger(day_of_week="mon-fri", hour=17, minute=0, timezone=tz),
+                      id="flow-eod-tune", max_instances=1, coalesce=True,
+                      replace_existing=True)
+    log.info("flow jobs: scan every %d min; EOD capture 16:35, label 16:45, tune 17:00 ET",
              scanner.SCAN_INTERVAL_MINUTES)
 
 
