@@ -179,6 +179,52 @@ def healthz():
                               "last_run": rs.get("last_run")}
     except Exception:
         pass
+    # Persistence diagnostic: the resolved data dir plus a live row count for each
+    # engine's learning table, so you can confirm at a glance that the mounted
+    # volume is catching writes — and, across a redeploy, that the counts survive
+    # (the real proof the volume works, vs. an ephemeral image dir). Fully
+    # defensive: a missing file/table or any error reports null and never breaks
+    # the endpoint, since Railway gates routing on this returning 200.
+    try:
+        import sqlite3 as _sql
+        from engines import config as _econf
+        ddir = _econf.DATA_DIR
+        storage = {
+            "dir": ddir,
+            "exists": os.path.isdir(ddir),
+            "writable": os.access(ddir, os.W_OK),
+        }
+        # (label, sqlite filename under DATA_DIR, table) — the recursive-learning
+        # record for each engine. agent: saved briefs + their grades; structure:
+        # thin-zone opportunities + outcomes; zerodte: scored level touches; flow:
+        # sweep history (first_seen/hits).
+        _stores = [
+            ("agent.sessions",          "agent.sqlite3",    "sessions"),
+            ("agent.outcomes",          "agent.sqlite3",    "outcomes"),
+            ("structure.opportunities", "opportunities.db", "opportunities"),
+            ("structure.outcomes",      "opportunities.db", "outcomes"),
+            ("zerodte.touches",         "zerodte.sqlite3",  "touches"),
+            ("flow.sweep_alerts",       "flow.db",          "sweep_alerts"),
+        ]
+        learning = {}
+        for label, fname, table in _stores:
+            rows = None
+            try:
+                path = os.path.join(ddir, fname)
+                if os.path.exists(path):
+                    conn = _sql.connect(f"file:{path}?mode=ro", uri=True, timeout=2)
+                    try:
+                        rows = conn.execute(
+                            f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                    finally:
+                        conn.close()
+            except Exception:
+                rows = None
+            learning[label] = rows
+        storage["learning_rows"] = learning
+        out["storage"] = storage
+    except Exception:
+        pass
     return out, 200
 
 
