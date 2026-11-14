@@ -205,6 +205,8 @@ def healthz():
             ("structure.outcomes",      "opportunities.db", "outcomes"),
             ("zerodte.touches",         "zerodte.sqlite3",  "touches"),
             ("flow.sweep_alerts",       "flow.db",          "sweep_alerts"),
+            ("flow.signals",            "flow_learning.db", "flow_signals"),
+            ("flow.outcomes",           "flow_learning.db", "flow_outcomes"),
         ]
         learning = {}
         for label, fname, table in _stores:

@@ -97,6 +97,15 @@ route("/api/sweeps")(lambda params: _call("/api/sweeps", params))
 route("/api/rotation")(lambda params: _call("/api/rotation", params))
 route_prefix("/api/ticker/")(lambda tail, params: _call("/api/ticker/" + tail, params))
 
+
+def _learning_report(params=None):
+    """Predictiveness of the day's flow vs the realized ETF move (Phase C report)."""
+    from . import report
+    return report.summary()
+
+
+route("/api/flow-learning")(_learning_report)
+
 serve("flow", econf.has_massive)
 
 
