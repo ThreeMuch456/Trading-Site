@@ -116,9 +116,25 @@ def _safe_scan() -> None:
         _scan_lock.release()
 
 
+def _safe_capture() -> None:
+    """EOD: snapshot the day's per-ETF flow signals into the learning DB.
+
+    Runs after the close, before sweep_alerts age out of ALERT_RETENTION_DAYS, so
+    the directional skew at each intraday cutoff is preserved for labeling even
+    once the raw rows are purged."""
+    try:
+        _ensure_db()
+        from . import learning
+        n = learning.record_signals()
+        log.info("flow EOD capture wrote %d signal rows", n)
+    except Exception:
+        log.exception("flow EOD capture failed")
+
+
 def _register_jobs(scheduler, tz) -> None:
-    """Add the scanner job to the desk scheduler on the OFS scan cadence."""
+    """Add the scanner + EOD-capture jobs to the desk scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
+    from apscheduler.triggers.cron import CronTrigger
     from . import scanner
     scheduler.add_job(_safe_scan, IntervalTrigger(minutes=scanner.SCAN_INTERVAL_MINUTES),
                       id="flow-scan", max_instances=1, coalesce=True,
@@ -126,7 +142,15 @@ def _register_jobs(scheduler, tz) -> None:
     # Prime once at startup so a freshly-deployed desk has flow within a cycle
     # rather than waiting a full interval (still market-hours gated inside run_scan).
     scheduler.add_job(_safe_scan, id="flow-scan-prime", replace_existing=True)
-    log.info("flow scanner job registered (every %d min)", scanner.SCAN_INTERVAL_MINUTES)
+    # Capture the day's flow signals after the close (after the "eod" 16:20 ET
+    # cutoff, once the delayed closing prints have been scanned). Weekdays only;
+    # a holiday simply finds no alerts and writes nothing.
+    scheduler.add_job(_safe_capture,
+                      CronTrigger(day_of_week="mon-fri", hour=16, minute=35, timezone=tz),
+                      id="flow-eod-capture", max_instances=1, coalesce=True,
+                      replace_existing=True)
+    log.info("flow scanner job registered (every %d min); EOD capture at 16:35 ET",
+             scanner.SCAN_INTERVAL_MINUTES)
 
 
 jobs(_register_jobs)
