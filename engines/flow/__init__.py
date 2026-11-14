@@ -131,8 +131,21 @@ def _safe_capture() -> None:
         log.exception("flow EOD capture failed")
 
 
+def _safe_label() -> None:
+    """EOD: label captured flow signals with the realized ETF move (the outcome).
+
+    Runs after capture: same-day horizons (to_close, open_close) label today;
+    next_day labels the prior session's EOD signal now that today's close exists."""
+    try:
+        from . import label
+        n = label.label_due()
+        log.info("flow EOD label wrote %d outcome rows", n)
+    except Exception:
+        log.exception("flow EOD label failed")
+
+
 def _register_jobs(scheduler, tz) -> None:
-    """Add the scanner + EOD-capture jobs to the desk scheduler."""
+    """Add the scanner + EOD capture/label jobs to the desk scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
     from . import scanner
@@ -149,7 +162,12 @@ def _register_jobs(scheduler, tz) -> None:
                       CronTrigger(day_of_week="mon-fri", hour=16, minute=35, timezone=tz),
                       id="flow-eod-capture", max_instances=1, coalesce=True,
                       replace_existing=True)
-    log.info("flow scanner job registered (every %d min); EOD capture at 16:35 ET",
+    # Label the captured signals from the day's price path, 10 min after capture.
+    scheduler.add_job(_safe_label,
+                      CronTrigger(day_of_week="mon-fri", hour=16, minute=45, timezone=tz),
+                      id="flow-eod-label", max_instances=1, coalesce=True,
+                      replace_existing=True)
+    log.info("flow jobs registered: scan every %d min; EOD capture 16:35 ET, label 16:45 ET",
              scanner.SCAN_INTERVAL_MINUTES)
 
 
