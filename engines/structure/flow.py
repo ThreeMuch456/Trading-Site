@@ -316,28 +316,43 @@ def parse_scanner_payload(all_scope: dict, notable_scope: dict | None) -> dict |
     return out
 
 
+_LOCAL_SCHEME = "local://"
+
+
+def _scanner_get(base: str, sym: str, params: dict | None, timeout: float) -> dict:
+    """One GET of the scanner's /api/ticker/<sym> JSON.
+
+    Desk merge: a `local://` base means the scanner is the flow engine in this
+    process, so dispatch through the engine router instead of the network. Any
+    other base is the standalone tool's original HTTP path, unchanged."""
+    if base.startswith(_LOCAL_SCHEME):
+        from urllib.parse import urlencode
+
+        from .. import produce
+        url = f"{base}/api/ticker/{sym}" + ("?" + urlencode(params) if params else "")
+        return produce(url)
+    import requests
+
+    resp = requests.get(f"{base}/api/ticker/{sym}", params=params or None, timeout=timeout)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def fetch_scanner_flow(ticker: str, cfg: Config) -> dict | None:
     """The scanner's 24h rollup for one ticker (all alerts + the notable subset).
     None when disabled, unreachable, or no alerts in the window."""
-    import requests
-
     base = scanner_url(cfg)
     if not base:
         return None
     timeout = float(cfg.get("flow.scanner_timeout", 15))
     sym = ticker.upper()
     try:
-        resp = requests.get(f"{base}/api/ticker/{sym}", timeout=timeout)
-        resp.raise_for_status()
-        all_scope = resp.json()
+        all_scope = _scanner_get(base, sym, None, timeout)
         if not all_scope.get("as_of"):
             return None                       # no alerts -> skip the second call
         notable = None
         try:
-            r2 = requests.get(f"{base}/api/ticker/{sym}", params={"scope": "notable"},
-                              timeout=timeout)
-            r2.raise_for_status()
-            notable = r2.json()
+            notable = _scanner_get(base, sym, {"scope": "notable"}, timeout)
         except Exception:  # noqa: BLE001 - notable subset is optional
             notable = None
         return parse_scanner_payload(all_scope, notable)
@@ -347,9 +362,14 @@ def fetch_scanner_flow(ticker: str, cfg: Config) -> dict | None:
 
 def prefetch_scanner_flow(tickers: list[str], cfg: Config) -> dict[str, dict | None]:
     """fetch_scanner_flow over the universe in parallel. {} when disabled."""
-    if not tickers or not scanner_url(cfg):
+    base = scanner_url(cfg)
+    if not tickers or not base:
         return {}
     workers = max(1, int(cfg.get("flow.scanner_workers", 4)))
+    if base.startswith(_LOCAL_SCHEME):
+        # In-process reads share one Flask test client; there is no network wait
+        # to parallelise, so go one at a time rather than drive it from 4 threads.
+        workers = 1
     out: dict[str, dict | None] = {}
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(fetch_scanner_flow, t, cfg): t for t in tickers}

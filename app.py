@@ -26,6 +26,16 @@ from desk.schedule import start as start_scheduler
 
 app = Flask(__name__)
 
+# One-time import of the standalone tools' learning history. A no-op unless files
+# have been dropped into <data dir>/legacy/; runs before the scheduler so no
+# engine job is writing while rows are merged. Never allowed to stop the boot.
+try:
+    from engines import legacy_import as _legacy_import
+    _legacy_import.run_pending()
+except Exception:
+    import logging as _logging
+    _logging.getLogger("desk").exception("legacy import failed")
+
 # Optional cadence refresh (DESK_SCHEDULER=1). No-op otherwise. Started at import
 # so it runs under gunicorn too; keep the service at one worker when enabled.
 _scheduler = start_scheduler()
@@ -208,6 +218,16 @@ def healthz():
             ("flow.signals",            "flow_learning.db", "flow_signals"),
             ("flow.outcomes",           "flow_learning.db", "flow_outcomes"),
         ]
+        # The desk's own journal. Its path can be overridden (DESK_DB_PATH), so take
+        # it from the store; an absolute path survives the os.path.join below.
+        try:
+            from desk import store as _store
+            _stores += [("desk.sessions", _store.DB_PATH, "daily_signals"),
+                        ("desk.graded",   _store.DB_PATH, "graded_biases")]
+            storage["desk_journal_on_volume"] = (
+                os.path.abspath(_store.DB_PATH).startswith(os.path.abspath(ddir)))
+        except Exception:
+            pass
         learning = {}
         for label, fname, table in _stores:
             rows = None
@@ -225,6 +245,13 @@ def healthz():
             learning[label] = rows
         storage["learning_rows"] = learning
         out["storage"] = storage
+        # One-time legacy history import (engines/legacy_import.py): what was
+        # merged from the standalone tools' databases, or null if never run.
+        try:
+            from engines import legacy_import as _legacy
+            out["legacy_import"] = _legacy.last_report()
+        except Exception:
+            pass
     except Exception:
         pass
     return out, 200

@@ -16,8 +16,19 @@ import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
-DB_PATH = os.environ.get("DESK_DB_PATH",
-                         str(Path(__file__).resolve().parent.parent / "data" / "desk.sqlite3"))
+def _default_db_path() -> str:
+    """The desk journal lives beside every engine's SQLite file in the shared data
+    dir, so a mounted Railway volume catches it too. (It used to default to the
+    repo's own data/ folder, which on Railway is the ephemeral image filesystem —
+    the journal silently reset on every deploy.) Locally both resolve to ./data."""
+    try:
+        from engines import config as econf
+        return econf.db_path("desk.sqlite3")
+    except Exception:
+        return str(Path(__file__).resolve().parent.parent / "data" / "desk.sqlite3")
+
+
+DB_PATH = os.environ.get("DESK_DB_PATH") or _default_db_path()
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_signals (

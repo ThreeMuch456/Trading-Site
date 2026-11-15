@@ -52,6 +52,14 @@ from .. import config as econf
 # _apply_data_dir_override), so this must be set before _cfg() loads the yaml.
 os.environ.setdefault("DATA_DIR", econf.DATA_DIR)
 
+# Standalone, the screener read the Options Flow Scanner's per-ticker rollup over
+# HTTP (FLOW_SCANNER_URL) to log the scanner_* learning features. In the merged
+# desk the scanner is the flow engine in this same process, so point the vendored
+# fetcher at it: `local://` is dispatched through engines.produce(), no network.
+# Without this the scanner_* features silently logged NULL after the merge. An
+# explicit FLOW_SCANNER_URL still wins.
+os.environ.setdefault("FLOW_SCANNER_URL", "local://flow")
+
 log = logging.getLogger("engines.structure")
 
 _CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
