@@ -26,6 +26,11 @@ from desk.schedule import start as start_scheduler
 
 app = Flask(__name__)
 
+import socket as _socket
+from datetime import datetime as _dt, timezone as _tz
+_HOST = _socket.gethostname()
+_STARTED_AT = _dt.now(_tz.utc).isoformat(timespec="seconds")
+
 # One-time import of the standalone tools' learning history. A no-op unless files
 # have been dropped into <data dir>/legacy/; runs before the scheduler so no
 # engine job is writing while rows are merged. Never allowed to stop the boot.
@@ -176,6 +181,9 @@ def healthz():
         "status": "ok",
         "live": s.get("live", False),
         "sources_degraded": s.get("degraded", {}),
+        # Which process answered. The scheduler assumes exactly one: if repeated
+        # calls show more than one pid/host, every scheduled job is running twice.
+        "process": {"pid": os.getpid(), "host": _HOST, "started_at": _STARTED_AT},
     }
     # Surface the morning-brief generator's last-run state so a failed brief is
     # diagnosable from here rather than only from the deploy logs. The adapter can

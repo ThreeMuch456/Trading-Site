@@ -122,5 +122,46 @@ def test_run_pending_imports_reports_and_retires_the_file(tmp_path):
     assert li.last_report(ddir)["agent"]["status"] == "ok"
     with open(os.path.join(ldir, li.REPORT_NAME)) as f:
         assert set(json.load(f)) == {"agent", "structure"}
+    assert not os.path.exists(os.path.join(ldir, "opportunities.db" + li.CLAIM_SUFFIX))
     os.remove(os.path.join(ldir, "opportunities.db"))
     assert li.run_pending(ddir) == {}                       # imported file is never re-read
+
+
+def test_a_file_is_imported_by_one_caller_only(tmp_path):
+    """Two processes booting together both see the file. Only the one whose claim
+    (an atomic rename) succeeds may import and report it; a stale claim left by a
+    process that died mid-import is handed back for the next boot."""
+    ddir = str(tmp_path)
+    ldir = os.path.join(ddir, "legacy")
+    os.makedirs(ldir)
+    src = os.path.join(ldir, "journal.db")
+    _agent_db(src, [("2026-11-10", "p", [("SPY", 1)], None)])
+
+    claimed = li._claim(src)                                # the other process got there first
+    assert claimed and li._claim(src) is None
+    assert li.run_pending(ddir) == {}                       # ...so this one does nothing
+    assert li.last_report(ddir) is None                     # ...and reports nothing
+    assert os.path.exists(claimed)                          # a fresh claim is left alone
+
+    old = os.path.getmtime(claimed) - li.STALE_CLAIM_S - 60
+    os.utime(claimed, (old, old))                           # its owner died long ago
+    ran = li.run_pending(ddir)
+    assert ran["agent"]["status"] == "ok" and ran["agent"]["result"]["sessions_added"] == 1
+    assert os.path.exists(src + ".imported") and not os.path.exists(claimed)
+
+
+def test_report_left_by_the_losing_side_of_a_boot_race_is_repaired(tmp_path):
+    ddir = str(tmp_path)
+    ldir = os.path.join(ddir, "legacy")
+    os.makedirs(ldir)
+    open(os.path.join(ldir, "journal.db.imported"), "w").close()      # the winner retired it
+    lost = {"file": "journal.db", "status": "failed", "result": {"sessions_added": 0},
+            "error": "FileNotFoundError: [Errno 2] No such file or directory: 'a' -> 'b'"}
+    real = {"file": "opportunities.db", "status": "failed", "error": "DatabaseError: not a db"}
+    with open(os.path.join(ldir, li.REPORT_NAME), "w") as f:
+        json.dump({"agent": lost, "structure": real}, f)
+
+    assert li.run_pending(ddir) == {}
+    rep = li.last_report(ddir)
+    assert rep["agent"]["status"] == "ok" and "error" not in rep["agent"] and rep["agent"]["note"]
+    assert rep["structure"] == real                         # a genuine failure is untouched

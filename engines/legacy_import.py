@@ -21,6 +21,8 @@ Safety
     over the same file adds nothing.
   - One transaction per source: a failure rolls that source back and leaves the
     file in place for another attempt; other sources still import.
+  - One importer per file: a file is claimed by an atomic rename before it is
+    read, so two processes booting together cannot both import and report it.
 
 Sources
   journal.db        Trading-Agent (AM Brief): sessions, outcomes, reviews
@@ -37,6 +39,7 @@ import logging
 import os
 import sqlite3
 import sys
+import time
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -45,6 +48,8 @@ from . import config as econf
 log = logging.getLogger("engines.legacy_import")
 
 REPORT_NAME = "import_report.json"
+CLAIM_SUFFIX = ".importing"      # a file some process is importing right now
+STALE_CLAIM_S = 15 * 60          # a claim older than this lost its owner mid-import
 
 _AGENT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -297,36 +302,112 @@ def last_report(data_dir: str | None = None):
         return None
 
 
+def _claim(src: str) -> str | None:
+    """Take sole ownership of a waiting file by renaming it to ``<name>.importing``.
+
+    Two processes that boot at the same moment both see the file; a rename is
+    atomic, so exactly one of them gets it and the other is told it is gone. The
+    first real import ran twice this way: both passes merged (the second adding
+    nothing, as designed), then the second failed to retire a file the first had
+    already retired and overwrote the first's report with "failed".
+
+    The file is touched BEFORE the rename so the claim's mtime is the claim time
+    from the instant it exists — that is what ``_release_stale_claims`` ages."""
+    try:
+        os.utime(src, None)
+        os.replace(src, src + CLAIM_SUFFIX)
+    except FileNotFoundError:
+        return None                                # another process claimed it first
+    return src + CLAIM_SUFFIX
+
+
+def _release_stale_claims(ldir: str) -> None:
+    """Hand back a claim whose owner died mid-import (its transaction rolled back,
+    so nothing was merged), so the next boot retries the file. A fresh claim
+    belongs to a live import and is left alone."""
+    for fname in {s[0] for s in SOURCES}:
+        src = os.path.join(ldir, fname)
+        try:
+            if os.path.exists(src):
+                continue
+            if time.time() - os.path.getmtime(src + CLAIM_SUFFIX) > STALE_CLAIM_S:
+                os.replace(src + CLAIM_SUFFIX, src)
+                log.warning("legacy import: released stale claim on %s", fname)
+        except OSError:
+            continue                               # no claim, or someone else moved it
+
+
+def _reconcile(report: dict, ldir: str) -> bool:
+    """Correct entries left by the losing side of a boot race (see ``_claim``):
+    marked failed only because the file had already been retired by the pass that
+    did the work. The retired file is the proof the import happened."""
+    changed = False
+    for entry in report.values():
+        fname = entry.get("file") or ""
+        if (entry.get("status") == "failed"
+                and "FileNotFoundError" in (entry.get("error") or "")
+                and not os.path.exists(os.path.join(ldir, fname))
+                and os.path.exists(os.path.join(ldir, fname + ".imported"))):
+            entry["status"] = "ok"
+            entry.pop("error", None)
+            entry["note"] = ("imported and retired by a parallel pass at the same boot; "
+                             "these counts are the second pass, which found nothing left to add")
+            changed = True
+    return changed
+
+
+def _save_report(ldir: str, entries: dict | None = None) -> None:
+    """Merge `entries` into the report on disk (re-read first, so a parallel pass's
+    entries survive), repair any race leftovers, and replace the file atomically."""
+    try:
+        report = last_report(os.path.dirname(ldir)) or {}
+        dirty = _reconcile(report, ldir)
+        if entries:
+            report.update(entries)
+        if not (entries or dirty):
+            return
+        path = os.path.join(ldir, REPORT_NAME)
+        tmp = f"{path}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+        os.replace(tmp, path)
+    except Exception:
+        log.warning("could not write legacy import report", exc_info=True)
+
+
 def run_pending(data_dir: str | None = None) -> dict:
     """Import every legacy file waiting in <data dir>/legacy/. Safe to call on
-    every boot: with nothing waiting it returns immediately."""
+    every boot, and from more than one process at once: with nothing waiting it
+    returns immediately, and each file is imported by whichever caller claims it."""
     ddir = data_dir or econf.DATA_DIR
     ldir = legacy_dir(ddir)
     if not os.path.isdir(ldir):
         return {}
-    report = last_report(ddir) or {}
+    _release_stale_claims(ldir)
     ran = {}
     for fname, store, label, fn in SOURCES:
         src = os.path.join(ldir, fname)
         if not os.path.isfile(src):
             continue
+        claimed = _claim(src)
+        if claimed is None:
+            continue
         entry = {"file": fname, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         try:
-            entry["result"] = fn(src, os.path.join(ddir, store))
+            entry["result"] = fn(claimed, os.path.join(ddir, store))
             entry["status"] = "ok"
-            os.replace(src, src + ".imported")
+            os.replace(claimed, src + ".imported")
             log.info("legacy import %s (%s): %s", label, fname, entry["result"])
         except Exception as exc:  # noqa: BLE001 - one bad file must not block the others
             entry["status"] = "failed"
             entry["error"] = f"{type(exc).__name__}: {exc}"
             log.exception("legacy import %s (%s) failed", label, fname)
-        ran[label] = report[label] = entry
-    if ran:
-        try:
-            with open(os.path.join(ldir, REPORT_NAME), "w", encoding="utf-8") as f:
-                json.dump(report, f, indent=2)
-        except Exception:
-            log.warning("could not write legacy import report", exc_info=True)
+            try:
+                os.replace(claimed, src)           # hand it back for another attempt
+            except OSError:
+                pass
+        ran[label] = entry
+    _save_report(ldir, ran)
     return ran
 
 
