@@ -225,14 +225,14 @@ def _structure_store(path, rows):
 
 
 def _zerodte_store(path, touches):
-    """touches: [(date, ticker, kind, outcome, mag_before)]"""
+    """touches: [(date, ticker, kind, outcome, mag_before[, extra flow fields])]"""
     from engines.zerodte import db as zdb
     con = sqlite3.connect(path)
     con.executescript(zdb._SCHEMA)
-    for i, (d, tk, kind, outcome, mag) in enumerate(touches):
+    for i, (d, tk, kind, outcome, mag, *rest) in enumerate(touches):
         payload = {"id": f"{kind}:{i}", "strike": 500.0, "kind": kind, "price_outcome": outcome,
                    "label": {"REJECTED": "DEFENDED", "BREACHED": "SLIPPED"}.get(outcome, "CONTESTED"),
-                   "flow": {"mag_before": mag, "mag_after": mag}}
+                   "flow": {"mag_before": mag, "mag_after": mag, **(rest[0] if rest else {})}}
         con.execute("INSERT INTO touches VALUES (?,?,?,?)", (d, tk, f"{kind}:{i}", json.dumps(payload)))
     con.commit()
     con.close()
@@ -368,7 +368,7 @@ def test_zerodte_reports_the_hold_rate_but_only_judges_relative_questions(tmp_pa
             touches.append((day, tk, "wall_above", "CHURN", 1e8))
     _zerodte_store(os.path.join(d, "zerodte.sqlite3"), touches)
     z = next(lp for lp in scorecard.build(d)["loops"] if lp["loop"] == "zerodte")
-    assert [f["family"] for f in z["families"]] == ["separates"]
+    assert [f["family"] for f in z["families"]] == ["separates", "during_touch"]
     desc = z["descriptive"]
     assert desc["touches"] == len(touches) and desc["churned"] == 80
     assert desc["held"] + desc["broke"] == len(touches) - 80 and 0 < desc["hold_rate"] < 100
@@ -377,6 +377,37 @@ def test_zerodte_reports_the_hold_rate_but_only_judges_relative_questions(tmp_pa
     assert kind["verdict"] == st.PAYING and 30 < kind["effect"] < 60        # planted 45pp gap
     assert cohorts["SPY minus the other tickers"]["verdict"] == st.NOISE
     assert not any("label" in c["cohort"].lower() for c in cohorts.values())
+
+
+def test_zerodte_tests_the_readings_behind_the_labels_not_the_labels(tmp_path):
+    """The DEFENDED / SLIPPED label always agrees with the outcome, so it cannot be
+    tested. The flow readings it is built from can: here buy-aggressive volume
+    really does precede a hold, and the sign of customer flow does not."""
+    d = str(tmp_path)
+    rng = random.Random(1)
+    touches = []
+    for i in range(40):
+        day = f"2026-09-{1 + i % 28:02d}" if i < 28 else f"2026-10-{i - 27:02d}"
+        for _ in range(12):
+            agg = rng.random()
+            held = rng.random() < (0.55 if agg > 0.5 else 0.2)
+            touches.append((day, "SPY", "wall_above", "REJECTED" if held else "BREACHED", 3e8,
+                            {"aggression_ratio": agg, "low_conf": True,
+                             "net_customer_contracts": rng.choice([-50, 0, 40]),
+                             "mag_change": rng.uniform(-0.5, 0.5)}))
+    _zerodte_store(os.path.join(d, "zerodte.sqlite3"), touches)
+    row = ledger.zerodte(d)[0]
+    assert {"aggression", "net_customer", "wall_change", "rel_volume", "low_conf"} <= set(row)
+    assert "time_inside" not in row and "max_excursion" not in row       # outcome-describing
+    z = next(lp for lp in scorecard.build(d)["loops"] if lp["loop"] == "zerodte")
+    fam = z["families"][1]
+    cohorts = {c["cohort"]: c for c in fam["cohorts"]}
+    agg = cohorts["more minus less buy-aggressive option volume"]
+    assert agg["verdict"] == st.PAYING and 20 < agg["effect"] < 50      # planted 35pp gap
+    assert agg["hit_rate"] > agg["other_hit_rate"]
+    net = cohorts["customers net selling minus net buying"]
+    assert net["verdict"] == st.NOISE and net["n"] < agg["n"]           # zero-flow touches dropped
+    assert "low-confidence flow" in fam["note"] and "480 of 480" in fam["note"]
 
 
 def test_brief_range_calls_are_judged_against_their_base_rate(tmp_path):
@@ -553,3 +584,41 @@ def test_learning_page_without_a_scorecard_says_so(monkeypatch):
     r = appmod.app.test_client().get("/learning")
     assert r.status_code == 200 and "not available right now" in r.get_data(as_text=True)
     assert lv.digest() == [] and lv.structure_tiles() is None
+
+
+def test_intraday_level_record_shows_tested_readings_not_label_hold_rates(tmp_path, monkeypatch):
+    from desk import fetch, learning_view as lv
+    d = str(tmp_path)
+    rng = random.Random(1)
+    touches = []
+    for i in range(40):
+        day = f"2026-09-{1 + i % 28:02d}" if i < 28 else f"2026-10-{i - 27:02d}"
+        for _ in range(12):
+            agg = rng.random()
+            held = rng.random() < (0.55 if agg > 0.5 else 0.2)
+            touches.append((day, "SPY", "wall_above", "REJECTED" if held else "BREACHED", 3e8,
+                            {"aggression_ratio": agg, "net_customer_contracts": rng.choice([-50, 40])}))
+    _zerodte_store(os.path.join(d, "zerodte.sqlite3"), touches)
+    card = scorecard.build(d)
+    monkeypatch.setattr(lv, "_scorecard", lambda: card)
+
+    panel = lv.zerodte_panel()
+    assert panel["touches"] == "480" and panel["sessions"] == 40
+    assert [t["label"] for t in panel["tiles"]] == ["Held", "Broke", "Churned"]
+    lead = panel["rows"][0]
+    assert lead["reading"] == "Buy-aggressive option volume" and lead["verdict"] == "paying"
+    assert lead["gap"].startswith("+") and lead["gap"].endswith(" pp")
+    assert float(lead["high_rate"][:-1]) > float(lead["low_rate"][:-1])
+    assert not any("DEFENDED" in r["reading"] for r in panel["rows"])
+    # The loop's headline family is quiet, so the finding is surfaced from the diagnostics.
+    line = lv.digest()[0]
+    assert "In the diagnostics: Buy-aggressive option volume (paying)" in line["text"]
+
+    s = {"eod": {}, "structure": {}, "intraday": {"touch_stats": {"rows": [{"label": "DEFENDED"}]}}}
+    fetch._attach_scorecard(s)
+    assert s["intraday"]["level_record"]["rows"][0]["verdict"] == "paying"
+    import app as appmod
+    monkeypatch.setattr(fetch, "_cache", {"snapshot": None, "ts": 0.0})
+    html = appmod.app.test_client().get("/intraday").get_data(as_text=True)
+    assert "what the history shows" in html and "Buy-aggressive option volume" in html
+    assert "Level Behaviour — calibration" not in html                  # the circular panel is gone

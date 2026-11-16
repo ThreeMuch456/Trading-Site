@@ -80,7 +80,47 @@
   </div>
 </div>
 
-{% if s.intraday.touch_stats and s.intraday.touch_stats.rows %}
+{% if s.intraday.level_record %}
+{% set lr = s.intraday.level_record %}
+<div class="section">
+  <div class="section-header"><span class="sh-title">Level Behaviour — what the history shows</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="sh-meta">{{ lr.touches }} touches · {{ lr.sessions }} sessions</span>
+      <a href="{{ url_for('learning') }}#loop-zerodte" class="src">Scorecard ↗</a>
+    </div></div>
+  <div class="section-body">
+    <div class="desc-row">
+      {% for t in lr.tiles %}
+      <div class="stat"><div class="stat-l">{{ t.label }}</div><div class="stat-v">{{ t.value }}</div>
+        <div class="stat-s">{{ t.sub }}</div></div>
+      {% endfor %}
+    </div>
+    {% if lr.rows %}
+    <div class="table-wrap">
+      <table class="data score">
+        <thead><tr><th class="l">Reading while price is at the level</th><th class="l">Levels held</th>
+          <th class="l">versus</th><th>Gap</th><th class="l">Verdict</th></tr></thead>
+        <tbody>
+          {% for r in lr.rows %}
+          <tr>
+            <td class="l tk">{{ r.reading }}</td>
+            <td class="l">{{ r.high_rate }} <span class="dim">· {{ r.high }}</span></td>
+            <td class="l">{{ r.low_rate }} <span class="dim">· {{ r.low }}</span></td>
+            <td>{{ r.gap }}</td>
+            <td class="l"><span class="verdict {{ r.v.cls }}"><i>{{ r.v.glyph }}</i>{{ r.v.label }}</span>{% if r.needs %} <span class="dim">{{ r.needs }}</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <div class="note">The hold rate is a plain count, not a verdict: the engine calls a level broken after a few
+      one-minute closes past a narrow band but held only after a clean touch that stays away, so the two are not
+      mirror images. The table tests each flow reading on its own. {{ lr.note }} A touch's DEFENDED / SLIPPED tag
+      describes what happened; it is assigned after the outcome, so it is not a forecast.</div>
+  </div>
+</div>
+{% elif s.intraday.touch_stats and s.intraday.touch_stats.rows %}
 <div class="section">
   <div class="section-header"><span class="sh-title">Level Behaviour — calibration</span>
     <span class="sh-meta">{{ s.intraday.touch_stats.n }} resolved touches · learning record</span></div>

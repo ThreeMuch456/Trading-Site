@@ -228,8 +228,15 @@ def zerodte(data_dir: str | None = None) -> list:
 
     The touch's own `label` (DEFENDED / SLIPPED / ...) is carried for reference
     but must never be used as a signal: it is assigned after the outcome and maps
-    one-to-one onto it. `wall_size` (dealer gamma at the level before the touch)
-    is the one field here that is known before the outcome."""
+    one-to-one onto it. What CAN be tested are the readings the label was built
+    from, all fixed before the outcome resolves: `wall_size` (dealer gamma at the
+    level on entry) and the option flow while price was inside the band —
+    `net_customer` (signed contracts), `aggression` (share of volume at the ask),
+    `wall_change` (dealer gamma on exit vs entry) and `rel_volume`.
+
+    Deliberately NOT carried: time inside the band and maximum excursion. A long,
+    deep touch is one that is already breaking, so they describe the outcome
+    rather than precede it."""
     raw = _query("zerodte", "SELECT session_date, ticker, payload FROM touches "
                             "ORDER BY session_date", data_dir)
     rows = []
@@ -241,12 +248,18 @@ def zerodte(data_dir: str | None = None) -> list:
         outcome = (t.get("price_outcome") or "").strip().upper()
         if not outcome:
             continue
-        mag = _num((t.get("flow") or {}).get("mag_before"))
+        fl = t.get("flow") or {}
+        mag = _num(fl.get("mag_before"))
         rows.append({
             "loop": "zerodte", "date": r["session_date"], "ticker": r["ticker"],
             "horizon": "session", "kind": t.get("kind"), "strike": _num(t.get("strike")),
             "direction": 0, "outcome": outcome,
             "wall_size": abs(mag) if mag is not None else None,
+            "net_customer": _num(fl.get("net_customer_contracts")),
+            "aggression": _num(fl.get("aggression_ratio")),
+            "wall_change": _num(fl.get("mag_change")),
+            "rel_volume": _num(t.get("rel_volume")),
+            "low_conf": bool(fl.get("low_conf")),
             "label_after_outcome": t.get("label"),
             "ret": None, "edge": None,
             "hit": 1 if outcome == "REJECTED" else 0 if outcome == "BREACHED" else None,

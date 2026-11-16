@@ -255,6 +255,39 @@ def _zerodte(rows: list) -> dict:
                           {"threshold": thr, "n_high": sum(mask),
                            "n_low": len(mask) - sum(mask), "versus": "smaller walls"}))
 
+    # The readings the DEFENDED / SLIPPED labels were built from, tested directly.
+    # Each is fixed while price is inside the band, before the outcome resolves.
+    def sign_split(name: str, key: str, hi_name: str, lo_name: str, hi_positive: bool,
+                   reading: str):
+        sub = [r for r in resolved if r[key]]                 # drop missing and exact zero
+        mask = [(r[key] > 0) == hi_positive for r in sub]
+        return (name, st.gap_effect([100.0 * r["hit"] for r in sub], mask, _dates(sub)),
+                {"n_high": sum(mask), "n_low": len(mask) - sum(mask),
+                 "hit_rate": _hits([r for r, m in zip(sub, mask) if m]).get("hit_rate"),
+                 "other_hit_rate": _hits([r for r, m in zip(sub, mask) if not m]).get("hit_rate"),
+                 "reading": reading, "high": hi_name, "versus": lo_name})
+
+    def median_gap(name: str, key: str, reading: str):
+        sub = [r for r in resolved if r[key] is not None]
+        thr, mask = st.median_split([r[key] for r in sub])
+        return (name, st.gap_effect([100.0 * r["hit"] for r in sub], mask, _dates(sub)),
+                {"threshold": thr, "n_high": sum(mask), "n_low": len(mask) - sum(mask),
+                 "hit_rate": _hits([r for r, m in zip(sub, mask) if m]).get("hit_rate"),
+                 "other_hit_rate": _hits([r for r, m in zip(sub, mask) if not m]).get("hit_rate"),
+                 "reading": reading, "high": "higher half", "versus": "lower half"})
+
+    during = [
+        median_gap("more minus less buy-aggressive option volume", "aggression",
+                   "Buy-aggressive option volume"),
+        median_gap("heavier minus lighter volume at the level", "rel_volume",
+                   "Volume at the level vs normal"),
+        sign_split("customers net selling minus net buying", "net_customer",
+                   "net selling", "net buying", False, "Customer option flow"),
+        sign_split("wall grew minus wall shrank", "wall_change",
+                   "wall grew", "wall shrank", True, "Dealer gamma at the level"),
+    ]
+    low_conf = sum(1 for r in resolved if r["low_conf"])
+
     return {
         "loop": "zerodte", "label": "0DTE levels", "store": ledger.STORES["zerodte"],
         "observation": "a touch of a 0DTE gamma level, resolved the same session",
@@ -274,6 +307,16 @@ def _zerodte(rows: list) -> dict:
                     "percentage-point gap in hold rate", separates,
                     "The touch's own DEFENDED / SLIPPED label is not used: it is "
                     "assigned after the outcome and always agrees with it."),
+            _family("during_touch",
+                    "Does option flow while price is at the level tell holds from breaks?",
+                    "percentage-point gap in hold rate", during,
+                    "These are the readings the DEFENDED / SLIPPED labels are built from, "
+                    "tested directly; each is fixed before the outcome resolves. "
+                    + (f"{low_conf:,} of {len(resolved):,} resolved touches have "
+                       "low-confidence flow (inferred from snapshot changes, not prints). "
+                       if resolved else "")
+                    + "Time inside the band and excursion are left out: a long, deep "
+                      "touch is already breaking."),
         ],
     }
 

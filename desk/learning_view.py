@@ -218,6 +218,12 @@ def _read(loop: dict) -> tuple:
         soonest = min((c.get("needs") or {}).get("dates") or 0 for c in by["accumulating"])
         tail = f" (soonest needs {_plural(soonest, 'more session')})" if soonest else ""
         bits.append(f"{len(by['accumulating'])} still accumulating{tail}.")
+    # A real finding in a diagnostic family must not hide behind a quiet headline.
+    deeper = [c for f in fams[1:] for c in f["cohorts"] if c["verdict"] in ("paying", "inverted")]
+    if deeper:
+        found = "; ".join(f"{c.get('reading') or c['cohort']} "
+                          f"({VERDICT[c['verdict']]['label'].lower()})" for c in deeper[:3])
+        bits.append(f"In the diagnostics: {found}{'…' if len(deeper) > 3 else ''}.")
     key = next((k for k in _ORDER if by[k]), "accumulating")
     return key, " ".join(bits)
 
@@ -290,6 +296,36 @@ def digest() -> list:
         out.append({"src": lp.get("label") or lp["loop"], "text": sentence,
                     "verdict": key, "v": VERDICT[key]})
     return out
+
+
+def zerodte_panel() -> dict | None:
+    """The Intraday page's level record. Replaces the per-label hold rates, which
+    could only ever read 100% or 0% because a touch's label is assigned after its
+    outcome. Shows the plain hold rate, then each reading taken while price was
+    at the level: how often levels held when it was high versus low, and whether
+    that gap is real."""
+    card = _scorecard()
+    loop = next((lp for lp in (card or {}).get("loops") or [] if lp["loop"] == "zerodte"), None)
+    desc = (loop or {}).get("descriptive")
+    if not desc or not desc.get("touches"):
+        return None
+    view = _loop(loop)
+    fam = next((f for f in loop["families"] if f["family"] == "during_touch"), None)
+    rows = []
+    for c in (fam or {}).get("cohorts") or []:
+        if c.get("hit_rate") is None or c.get("other_hit_rate") is None:
+            continue
+        rows.append({
+            "reading": c.get("reading") or c["cohort"],
+            "high": c.get("high"), "high_rate": f"{c['hit_rate']:.1f}%",
+            "low": c.get("versus"), "low_rate": f"{c['other_hit_rate']:.1f}%",
+            "gap": f"{_signed(c.get('effect'), 'percentage')} pp",
+            "v": VERDICT[c["verdict"]], "verdict": c["verdict"],
+            "needs": _needs_text(c.get("needs")),
+        })
+    return {"tiles": view["descriptive"]["tiles"], "rows": rows,
+            "sessions": view["sessions"], "touches": f"{desc['touches']:,}",
+            "note": (fam or {}).get("note")}
 
 
 def structure_tiles() -> dict | None:

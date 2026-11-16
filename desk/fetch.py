@@ -162,6 +162,11 @@ def _attach_scorecard(s: dict) -> None:
         tiles = learning_view.structure_tiles()
         if tiles:
             s.setdefault("structure", {})["scorecard"] = tiles
+        # Intraday: tested flow readings instead of per-label hold rates, which
+        # could only read 100% or 0% (the label is assigned after the outcome).
+        levels = learning_view.zerodte_panel()
+        if levels:
+            s.setdefault("intraday", {})["level_record"] = levels
     except Exception:
         pass
 
