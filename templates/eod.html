@@ -57,13 +57,15 @@
     <div class="note">
       Grading feeds the learning loop — each day's bias is scored open→close and fed back into tomorrow's
       synthesis to temper conviction where a condition (ticker · bias · gamma regime) has a weak history.
+      The tiles above cover recent sessions only; the Track Record below is the full history.
     </div>
     {% if s.eod.track_record and s.eod.track_record.lines %}
     <div class="track">
-      <div class="track-h">◆ Track Record — synthesized learning</div>
+      <div class="track-h">◆ Track Record — {{ 'every loop, judged one way' if s.eod.track_record.scorecard else 'synthesized learning' }}</div>
       {% for it in s.eod.track_record.lines %}
-      <div class="track-row"><span class="track-src">{{ it.src }}</span><span class="track-txt">{{ it.text }}</span></div>
+      <div class="track-row"><span class="track-src">{{ it.src }}</span>{% if it.v %}<span class="verdict {{ it.v.cls }}"><i>{{ it.v.glyph }}</i>{{ it.v.label }}</span>{% endif %}<span class="track-txt">{{ it.text }}</span></div>
       {% endfor %}
+      {% if s.eod.track_record.scorecard %}<a class="track-more" href="{{ url_for('learning') }}">Full scorecard →</a>{% endif %}
     </div>
     {% endif %}
   </div>

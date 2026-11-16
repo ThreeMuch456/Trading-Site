@@ -397,6 +397,112 @@ a.tlink:hover { color:var(--blue); border-bottom-color:var(--blue); text-decorat
   white-space:nowrap; min-width:94px; text-align:center; flex-shrink:0; }
 .track-txt { color:var(--text); }
 
+/* ---- Learning scorecard (/learning) + verdict chips used across the desk ---- */
+/* Status is never colour alone: every verdict is a glyph + a word, and an
+   unjudged estimate is a hollow dot. Numbers stay in text colours. */
+:root { --v-noise:#8494ad; }
+.verdict { display:inline-flex; align-items:center; gap:5px; font-size:0.6rem; font-weight:700;
+  letter-spacing:0.09em; text-transform:uppercase; padding:3px 8px; border-radius:3px;
+  white-space:nowrap; vertical-align:middle; }
+.verdict i { font-style:normal; font-size:0.9em; line-height:1; }
+.verdict.v-paying { background:var(--green-dim); color:var(--green); }
+.verdict.v-inverted { background:var(--red-dim); color:#ff8ea1; }
+.verdict.v-noise { background:var(--surface2); color:var(--v-noise); border:1px solid var(--border); }
+.verdict.v-accumulating { background:var(--amber-dim); color:var(--amber); }
+
+.legend { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+.legend-item { background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:11px 13px; display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+.legend-txt { font-size:0.72em; color:#8fa3c0; line-height:1.55; }
+
+.loop-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+.loop-card { background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:13px 15px; color:inherit; display:flex; flex-direction:column; gap:5px;
+  transition:border-color .16s; }
+.loop-card:hover { border-color:var(--blue); text-decoration:none; }
+.lc-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.lc-name { font-size:0.7em; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; }
+.lc-fig { font-size:1.7em; font-weight:700; line-height:1.15; margin-top:4px; }
+.lc-unit { font-size:0.4em; font-weight:500; color:var(--muted); letter-spacing:0.08em;
+  text-transform:uppercase; margin-left:7px; }
+.lc-sub { font-size:0.68em; color:var(--muted); }
+.lc-read { font-size:0.76em; color:var(--text); line-height:1.55; margin-top:5px; }
+
+.loop-read { font-size:0.86em; line-height:1.6; margin-bottom:14px; }
+.loop-obs { color:var(--muted); font-size:0.9em; margin-left:6px; }
+.desc-row { display:flex; gap:10px; flex-wrap:wrap; align-items:stretch; margin-bottom:14px; }
+.stat { background:var(--surface2); border:1px solid var(--border); border-radius:5px;
+  padding:10px 13px; min-width:150px; }
+.stat-l { font-size:0.58em; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; }
+.stat-v { font-size:1.25em; font-weight:700; margin-top:2px; }
+.stat-s { font-size:0.66em; color:var(--muted); margin-top:1px; }
+.desc-note { flex:1; min-width:240px; font-size:0.74em; color:#8fa3c0; line-height:1.6;
+  align-self:center; padding-left:6px; }
+
+details.fam { border:1px solid var(--border); border-radius:5px; margin-top:10px;
+  background:var(--surface); }
+details.fam > summary { cursor:pointer; list-style:none; padding:10px 14px; display:flex;
+  align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  background:var(--surface2); border-radius:5px; }
+details.fam[open] > summary { border-bottom:1px solid var(--border); border-radius:5px 5px 0 0; }
+details.fam > summary::-webkit-details-marker { display:none; }
+details.fam > summary::before { content:"▸"; color:var(--muted); margin-right:8px; font-size:0.8em; }
+details.fam[open] > summary::before { content:"▾"; }
+.fam-q { font-size:0.82em; font-weight:600; flex:1; min-width:240px; }
+.fam-sum { font-size:0.68em; color:var(--muted); letter-spacing:0.04em; white-space:nowrap; }
+.fam-foot { font-size:0.72em; color:#8fa3c0; line-height:1.6; padding:10px 14px 12px;
+  border-top:1px solid var(--border); }
+table.score tbody td { padding:9px 12px; }
+table.score .dim { color:#8fa3c0; }
+.dagger { color:var(--amber); font-weight:700; }
+.nav { scrollbar-width:none; } .nav::-webkit-scrollbar { display:none; }
+.table-wrap { scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+table.score tbody td.tk { white-space:normal; min-width:150px; }
+
+/* Interval mark: hairline track, solid zero rule, 2px range, 8px dot with a
+   surface ring. All rows in one table share the axis printed in the header. */
+.ci, .ci-axis { width:190px; margin:0 auto; }
+.ci-axis { display:flex; justify-content:space-between; font-variant-numeric:tabular-nums; }
+.ci-axis span { flex:1; text-align:center; } .ci-axis span:first-child { text-align:left; }
+.ci-axis span:last-child { text-align:right; }
+.ci { position:relative; height:18px; }
+.ci::before { content:""; position:absolute; left:0; right:0; top:50%; height:1px;
+  background:var(--border); }
+.ci-zero { position:absolute; left:50%; top:1px; bottom:1px; width:1px; background:#3a4d6e; }
+.ci-range { position:absolute; top:50%; height:2px; margin-top:-1px; border-radius:1px;
+  background:var(--mark); min-width:2px; }
+.ci-dot { position:absolute; top:50%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px;
+  border-radius:50%; background:var(--mark); box-shadow:0 0 0 2px var(--surface); }
+.ci-dot.hollow { background:var(--surface); border:2px solid var(--mark); box-shadow:none; }
+.ci-dot.clipped { border-radius:2px; }
+tr.v-paying { --mark:var(--green); } tr.v-inverted { --mark:var(--red); }
+tr.v-noise { --mark:var(--v-noise); } tr.v-accumulating { --mark:var(--amber); }
+table.score tbody tr:hover .ci-dot { box-shadow:0 0 0 2px #152033; }
+table.score tbody tr:hover .ci-dot.hollow { background:#152033; box-shadow:none; }
+
+.need { display:flex; flex-direction:column; gap:5px; font-size:0.92em; white-space:normal;
+  min-width:128px; max-width:170px; line-height:1.4; }
+.meter { display:block; width:120px; height:4px; border-radius:2px; background:var(--amber-dim);
+  overflow:hidden; }
+.meter i { display:block; height:100%; border-radius:2px; background:var(--amber); }
+
+.how { display:grid; grid-template-columns:1fr 1fr; gap:14px 26px; font-size:0.8em;
+  line-height:1.65; color:#a9b9cf; }
+.how b { color:var(--text); }
+
+/* Track Record rows carry a verdict chip when they come from the scorecard */
+.track-row .verdict { flex-shrink:0; }
+.track-more { display:inline-block; margin-top:9px; font-size:0.7em; font-weight:600;
+  letter-spacing:0.06em; }
+
+@media (max-width:1000px) {
+  .legend, .loop-grid { grid-template-columns:1fr 1fr; }
+  .how { grid-template-columns:1fr; }
+}
+@media (max-width:640px) {
+  .legend, .loop-grid { grid-template-columns:1fr; }
+}
+
 /* degraded banner */
 .degraded-banner { background:var(--red-dim); color:#ffd7de; text-align:center;
   font-size:0.68em; font-weight:600; letter-spacing:0.04em; padding:5px 16px;

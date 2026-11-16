@@ -57,7 +57,31 @@
   </div>
 </div>
 
-{% if s.structure.learning and s.structure.learning.rows %}
+{% if s.structure.scorecard %}
+<div class="section">
+  <div class="section-header"><span class="sh-title">Setup Edge — what the history shows</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="sh-meta">{{ s.structure.scorecard.sessions }} sessions · {{ "{:,}".format(s.structure.scorecard.outcomes) }} labeled outcomes</span>
+      <a href="{{ url_for('learning') }}#loop-structure" class="src">Scorecard ↗</a>
+    </div></div>
+  <div class="section-body">
+    <div class="perf-grid">
+      {% for t in s.structure.scorecard.tiles %}
+      <div class="perf">
+        <div class="pl">{{ t.label }}</div>
+        <div class="pv">{{ t.value }}</div>
+        <div class="ps">{{ t.sub }}</div>
+        <div style="margin-top:7px;"><span class="verdict {{ t.v.cls }}"><i>{{ t.v.glyph }}</i>{{ t.v.label }}</span></div>
+        {% if t.needs %}<div class="ps" style="margin-top:5px;">{{ t.needs }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="note">Edge is each setup's return net of the benchmark over the same window, with its 90%
+      interval. Win rate is shown beside it but not judged: a setup can win most of the time and still
+      trail the benchmark. An interval that crosses zero has not shown an edge.</div>
+  </div>
+</div>
+{% elif s.structure.learning and s.structure.learning.rows %}
 <div class="section">
   <div class="section-header"><span class="sh-title">Setup Win-Rates — self-calibration</span>
     <span class="sh-meta">{{ s.structure.learning.horizon }}d horizon · {{ s.structure.learning.n_outcomes }} labeled outcomes</span></div>

@@ -432,3 +432,124 @@ def test_routes_serve_the_scorecard():
     r = client.get("/api/learning.json?loop=zerodte")
     assert r.status_code == 200 and [lp["loop"] for lp in r.get_json()["loops"]] == ["zerodte"]
     assert set(client.get("/healthz").get_json()["learning"]) == set(ledger.LOOPS)
+
+
+# ---------------------------------------------------------------------------
+# display model + pages (desk/learning_view.py)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def planted_view(tmp_path, monkeypatch):
+    """The display model wired to a scorecard built from planted structure data."""
+    from desk import learning_view as lv
+    d = str(tmp_path)
+    _planted_structure(os.path.join(d, "opportunities.db"))
+    card = scorecard.build(d)
+    monkeypatch.setattr(lv, "_scorecard", lambda: card)
+    return lv
+
+
+def test_view_says_what_the_scorecard_decided(planted_view):
+    lv = planted_view
+    page = lv.page()
+    assert page["available"] and [lp["key"] for lp in page["loops"]] == list(ledger.LOOPS)
+    assert [v["key"] for v in page["legend"]] == ["paying", "inverted", "noise", "accumulating"]
+    s = next(lp for lp in page["loops"] if lp["key"] == "structure")
+    assert s["sessions"] == 60 and s["verdict"] == "paying"
+    assert "Paying: support · 5d." in s["read"] and "Reliably wrong: resistance · 5d." in s["read"]
+    assert "1 still accumulating (soonest needs 40 more sessions)." in s["read"]
+    lead = s["families"][0]
+    assert lead["open"] and not s["families"][1]["open"]              # diagnostics fold away
+    rows = {r["cohort"]: r for r in lead["rows"]}
+    paying, waiting = rows["support · 5d"], rows["support · 10d"]
+    # Every verdict is a glyph and a word, never a colour alone.
+    assert (paying["v"]["glyph"], paying["v"]["label"]) == ("▲", "Paying")
+    assert paying["judged"] and 50 < paying["mark"]["dot"] <= 100     # right of zero
+    assert paying["mark"]["lo"] > 50                                  # whole interval clears zero
+    assert rows["resistance · 5d"]["mark"]["dot"] < 50
+    assert not waiting["judged"] and waiting["needs"] == "40 more sessions"
+    assert waiting["progress"] == 60                                  # 60 of the 100 sessions needed
+    assert paying["needs"] == "" and paying["progress"] is None
+    assert lead["has_overlap"] and lead["axis"]["lo"].startswith("−")
+    # An empty loop reads as such rather than as a verdict.
+    flow = next(lp for lp in page["loops"] if lp["key"] == "flow")
+    assert flow["read"] == "No labelled history yet." and flow["sessions"] == 0
+
+
+def test_axis_is_set_by_judged_cohorts_and_outliers_are_clipped():
+    from desk import learning_view as lv
+    judged = {"cohort": "a", "verdict": "noise", "effect": 0.2, "ci_low": -0.4, "ci_high": 0.8,
+              "n": 100, "n_clusters": 60, "eff_clusters": 60.0}
+    wild = {"cohort": "b", "verdict": "accumulating", "effect": -48.0, "ci_low": -90.0,
+            "ci_high": -6.0, "n": 4, "n_clusters": 2, "eff_clusters": 2.0,
+            "needs": {"observations": 26, "dates": 13}}
+    assert lv._axis_max([judged, wild]) == 0.8
+    assert lv._axis_max([wild]) == 50                                 # nothing judged: estimates
+    row = lv._row(wild, "percentage points", 0.8)
+    assert row["mark"]["clipped"] and row["mark"]["dot"] == 0.0
+    assert row["needs"] == "13 more sessions · 26 more observations"
+    assert lv._row(judged, "% return", 0.8)["effect"] == "+0.20"
+    assert lv._row(judged, "percentage points", 0.8)["effect"] == "+0.2"
+    assert [lv._nice_ceiling(x) for x in (0.22, 1.02, 2.33, 13.5, 48.0)] == [0.25, 1.5, 2.5, 15, 50]
+
+
+def test_interval_clear_of_zero_but_held_back_by_the_family_is_flagged():
+    from desk import learning_view as lv
+    c = {"cohort": "bullish", "verdict": "noise", "effect": 0.23, "ci_low": 0.01, "ci_high": 0.45,
+         "n": 75, "n_clusters": 34, "eff_clusters": 34.0}
+    assert lv._row(c, "% move", 0.5)["dagger"]
+    assert not lv._row({**c, "ci_low": -0.01}, "% move", 0.5)["dagger"]
+    assert not lv._row({**c, "verdict": "paying"}, "% move", 0.5)["dagger"]
+
+
+def test_digest_and_structure_tiles(planted_view):
+    lv = planted_view
+    lines = lv.digest()
+    assert [ln["src"] for ln in lines] == ["Structure setups"]        # loops with no history are omitted
+    assert lines[0]["verdict"] == "paying" and lines[0]["v"]["label"] == "Paying"
+    tiles = lv.structure_tiles()
+    assert tiles["sessions"] == 60 and [t["label"] for t in tiles["tiles"]] == [
+        "flag · 5d", "resistance · 5d", "support · 5d", "support · 10d"]
+    support = tiles["tiles"][2]
+    assert support["value"].startswith("+") and support["value"].endswith("%")
+    assert "win 100%" in support["sub"] and support["verdict"] == "paying"
+    assert tiles["tiles"][3]["needs"] == "40 more sessions"
+
+
+def test_scorecard_digest_replaces_the_adapters_track_lines_only_when_there_is_history(
+        planted_view, monkeypatch):
+    from desk import fetch
+    adapter_lines = [{"src": "Structure", "text": "resistance setups win 68% at the 5d horizon"}]
+    s = {"eod": {"track_record": {"lines": list(adapter_lines)}}, "structure": {}}
+    fetch._attach_scorecard(s)
+    assert s["eod"]["track_record"]["scorecard"] is True
+    assert [ln["src"] for ln in s["eod"]["track_record"]["lines"]] == ["Structure setups"]
+    assert s["structure"]["scorecard"]["tiles"]
+
+    monkeypatch.setattr(planted_view, "_scorecard", lambda: None)     # nothing readable
+    s = {"eod": {"track_record": {"lines": list(adapter_lines)}}, "structure": {}}
+    fetch._attach_scorecard(s)
+    assert s["eod"]["track_record"]["lines"] == adapter_lines and "scorecard" not in s["structure"]
+
+
+def test_learning_page_renders(planted_view):
+    import app as appmod
+    client = appmod.app.test_client()
+    r = client.get("/learning")
+    html = r.get_data(as_text=True)
+    assert r.status_code == 200
+    assert "What the Desk Has Earned" in html and 'id="loop-structure"' in html
+    assert html.count('class="ci"') >= 4 and "ci-dot hollow" in html  # unjudged = hollow dot
+    assert "40 more sessions" in html and "Indep. windows" in html
+    assert "var REFRESH_MS = 0;" in html                              # no auto-reload here...
+    assert "var REFRESH_MS = 60000;" in client.get("/eod").get_data(as_text=True)   # ...only here
+    assert ">Learning</a>" in client.get("/").get_data(as_text=True)  # in the nav
+
+
+def test_learning_page_without_a_scorecard_says_so(monkeypatch):
+    from desk import learning_view as lv
+    import app as appmod
+    monkeypatch.setattr(lv, "_scorecard", lambda: None)
+    r = appmod.app.test_client().get("/learning")
+    assert r.status_code == 200 and "not available right now" in r.get_data(as_text=True)
+    assert lv.digest() == [] and lv.structure_tiles() is None

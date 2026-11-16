@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Learning — {{ site_name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div class="ph-l">
+    <h2><span class="n">06</span>Learning — What the Desk Has Earned</h2>
+    <div class="sub">Every loop's track record, judged the same way: is the edge different from zero once
+      same-day rows, overlapping horizons and the number of tests are accounted for? Four verdicts, used
+      everywhere on the desk.</div>
+  </div>
+  <div class="ph-r">
+    {% if L.available %}<span class="ph-meta">Scorecard built {{ L.generated_at }}</span>{% endif %}
+    <a href="{{ url_for('learning_json') }}" class="src">JSON ↗</a>
+  </div>
+</div>
+
+{% if not L.available %}
+<div class="section"><div class="section-body">
+  <div class="note" style="margin:0; padding:0; border:none;">The learning scorecard is not available right now.</div>
+</div></div>
+{% else %}
+
+<div class="legend">
+  {% for v in L.legend %}
+  <div class="legend-item">
+    <span class="verdict {{ v.cls }}"><i>{{ v.glyph }}</i>{{ v.label }}</span>
+    <span class="legend-txt">{{ v.text }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="loop-grid">
+  {% for lp in L.loops %}
+  <a class="loop-card" href="#loop-{{ lp.key }}">
+    <div class="lc-head"><span class="lc-name">{{ lp.label }}</span>
+      <span class="verdict {{ lp.v.cls }}"><i>{{ lp.v.glyph }}</i>{{ lp.v.label }}</span></div>
+    <div class="lc-fig">{{ lp.sessions }}<span class="lc-unit">session{{ '' if lp.sessions == 1 else 's' }}</span></div>
+    <div class="lc-sub">{{ lp.observations }} · {{ lp.span }}</div>
+    <div class="lc-read">{{ lp.read }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+{% for lp in L.loops %}
+<div class="section" id="loop-{{ lp.key }}">
+  <div class="section-header">
+    <span class="sh-title">{{ lp.label }}
+      <span class="verdict {{ lp.v.cls }}"><i>{{ lp.v.glyph }}</i>{{ lp.v.label }}</span></span>
+    <span class="sh-meta">{{ lp.sessions }} session{{ '' if lp.sessions == 1 else 's' }} · {{ lp.observations }} · {{ lp.span }}</span>
+  </div>
+  <div class="section-body">
+    <div class="loop-read">{{ lp.read }}
+      <span class="loop-obs">One observation = {{ lp.observation }}.</span></div>
+
+    {% if lp.descriptive %}
+    <div class="desc-row">
+      {% for t in lp.descriptive.tiles %}
+      <div class="stat"><div class="stat-l">{{ t.label }}</div><div class="stat-v">{{ t.value }}</div>
+        <div class="stat-s">{{ t.sub }}</div></div>
+      {% endfor %}
+      <div class="desc-note">{{ lp.descriptive.note }}</div>
+    </div>
+    {% endif %}
+
+    {% for f in lp.families %}
+    <details class="fam" {{ 'open' if f.open }}>
+      <summary>
+        <span class="fam-q">{{ f.question }}</span>
+        <span class="fam-sum">{{ f.summary }}{% if f.tests %} · {{ f.tests }} judged together{% endif %}</span>
+      </summary>
+      {% if f.rows %}
+      <div class="table-wrap">
+        <table class="data score">
+          <thead><tr>
+            <th class="l">Cohort</th>
+            <th class="l">Verdict</th>
+            <th>Edge ({{ f.axis.suffix }})</th>
+            <th class="c"><div class="ci-axis"><span>{{ f.axis.lo }}</span><span>0</span><span>{{ f.axis.hi }}</span></div></th>
+            <th class="l">90% interval</th>
+            <th>Obs</th>
+            <th>Sessions</th>
+            {% if f.has_overlap %}<th>Indep. windows</th>{% endif %}
+            {% if f.has_hit %}<th>Hit rate</th>{% endif %}
+            <th class="l">Still needs</th>
+          </tr></thead>
+          <tbody>
+            {% for r in f.rows %}
+            <tr class="{{ r.v.cls }}">
+              <td class="l tk">{{ r.cohort }}</td>
+              <td class="l"><span class="verdict {{ r.v.cls }}"><i>{{ r.v.glyph }}</i>{{ r.v.label }}</span></td>
+              <td>{{ r.effect }}</td>
+              <td class="c">
+                <div class="ci" title="{{ r.tip }}">
+                  <i class="ci-zero"></i>
+                  {% if r.mark %}
+                    {% if r.mark.width is defined %}<i class="ci-range" style="left:{{ r.mark.lo }}%; width:{{ r.mark.width }}%;"></i>{% endif %}
+                    <i class="ci-dot{{ '' if r.judged else ' hollow' }}{{ ' clipped' if r.mark.clipped }}" style="left:{{ r.mark.dot }}%;"></i>
+                  {% endif %}
+                </div>
+              </td>
+              <td class="l dim">{{ r.interval }}{% if r.dagger %} <span class="dagger">†</span>{% endif %}</td>
+              <td>{{ r.n }}</td>
+              <td>{{ r.dates }}</td>
+              {% if f.has_overlap %}<td>{{ r.windows }}</td>{% endif %}
+              {% if f.has_hit %}<td>{{ r.hit }}</td>{% endif %}
+              <td class="l">
+                {% if r.needs %}
+                <div class="need">{{ r.needs }}
+                  {% if r.progress is not none %}<span class="meter" title="{{ r.progress }}% of the way to being judged"><i style="width:{{ r.progress }}%;"></i></span>{% endif %}
+                </div>
+                {% else %}<span class="dim">—</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="fam-foot">Edge = {{ f.unit }}.{% if f.note %} {{ f.note }}{% endif %}
+        {% if f.has_dagger %}<br><span class="dagger">†</span> On its own this interval clears zero, but not
+        after correcting for the {{ f.tests }} cohorts judged together — so it stays noise.{% endif %}</div>
+      {% else %}
+      <div class="fam-foot">Nothing labelled yet — this fills in as sessions are graded.</div>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+<div class="section">
+  <div class="section-header"><span class="sh-title">How to read this</span></div>
+  <div class="section-body">
+    <div class="how">
+      <div><b>Edge</b> is zero when a signal carries no information: a return net of its benchmark, a
+        directional call net of the market's average day, or a hit rate net of what you would get without
+        the signal. The dot is the estimate; the line is its {{ L.method.ci }} interval. An interval that
+        crosses zero has not shown an edge.</div>
+      <div><b>Sessions, not rows, are the evidence.</b> Two hundred setups screened on one close move
+        together, so they count as one date. A 10-day outcome logged today shares nine days with
+        tomorrow's, so "Indep. windows" counts the non-overlapping ones.</div>
+      <div><b>Judged together.</b> Cohorts in one table are corrected as a group (false-discovery rate
+        {{ L.method.fdr }}), so one lucky split among many does not earn a verdict.</div>
+      <div><b>Accumulating</b> means fewer than {{ L.method.min_obs }} observations, {{ L.method.min_dates }}
+        sessions or {{ L.method.min_windows }} independent windows. A hollow dot is an estimate that has not
+        been judged yet.</div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

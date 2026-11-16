@@ -31,6 +31,7 @@ def get_snapshot(force: bool = False) -> dict:
     if not config.any_live():
         s["mock"], s["live"], s["degraded"] = True, False, {}
         _derive_overview_cards(s)
+        _attach_scorecard(s)
         _store(s, now)
         return s
 
@@ -63,6 +64,7 @@ def get_snapshot(force: bool = False) -> dict:
     _derive_overview_cards(s)
     s["degraded"] = degraded
     _record_learning(s, degraded)
+    _attach_scorecard(s)
     _store(s, now)
     return s
 
@@ -139,6 +141,27 @@ def _record_learning(s: dict, degraded: dict) -> None:
         hist = store.history()
         if hist:
             s["eod"]["history"] = hist
+    except Exception:
+        pass
+
+
+def _attach_scorecard(s: dict) -> None:
+    """Make the shared learning scorecard the desk's one account of what has been
+    learned. Each source adapter still appends its own Track Record line (a win
+    rate, a recent-sessions accuracy, a per-label hold rate) — computed three
+    different ways and none with an error bar. When the scorecard has history,
+    its digest REPLACES those lines, and the Structure page's learned strip shows
+    edge over benchmark instead of raw win rate. With no history (a fresh or
+    sample-mode desk) everything is left as the adapters wrote it. Fully guarded."""
+    try:
+        from . import learning_view
+        lines = learning_view.digest()
+        if not lines:
+            return
+        s.setdefault("eod", {})["track_record"] = {"lines": lines, "scorecard": True}
+        tiles = learning_view.structure_tiles()
+        if tiles:
+            s.setdefault("structure", {})["scorecard"] = tiles
     except Exception:
         pass
 

@@ -94,6 +94,7 @@ NAV_ITEMS = [
     ("flow", "Flow"),
     ("structure", "Structure"),
     ("eod", "EOD"),
+    ("learning", "Learning"),
 ]
 
 
@@ -211,6 +212,14 @@ def structure():
 @app.route("/eod")
 def eod():
     return render_template("eod.html")
+
+
+@app.route("/learning")
+def learning():
+    """The learning scorecard page. It changes at most once a session, so the
+    60-second page auto-refresh is off here (it would also re-fold the tables)."""
+    from desk import learning_view
+    return render_template("learning.html", L=learning_view.page(), refresh_ms=0)
 
 
 @app.route("/api/learning.json")

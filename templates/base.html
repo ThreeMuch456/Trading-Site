@@ -71,8 +71,9 @@
     // new data on the desk's compose cadence without a manual reload — mirrors the
     // standalone tools. Only reloads while the tab is actually visible, and at the
     // composed-snapshot TTL (reloading faster just re-renders the same cached data).
-    var REFRESH_MS = 60000;
-    setInterval(function (){
+    // A page can pass refresh_ms=0 to opt out (the Learning scorecard changes daily).
+    var REFRESH_MS = {{ refresh_ms|default(60000)|int }};
+    if (REFRESH_MS > 0) setInterval(function (){
       if (document.visibilityState === 'visible') window.location.reload();
     }, REFRESH_MS);
   })();

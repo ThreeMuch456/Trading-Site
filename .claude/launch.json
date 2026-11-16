@@ -6,6 +6,15 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["app.py"],
       "port": 8000
+    },
+    {
+      "name": "trading-desk-history",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-c",
+        "import os, runpy; os.environ['DESK_DATA_DIR'] = os.path.abspath('legacy/_ledger'); os.environ['PORT'] = '8011'; runpy.run_path('app.py', run_name='__main__')"
+      ],
+      "port": 8011
     }
   ]
 }
