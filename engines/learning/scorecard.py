@@ -40,8 +40,14 @@ def _mean(xs) -> float | None:
     return round(sum(xs) / len(xs), 4) if xs else None
 
 
-def _family(key: str, question: str, unit: str, items: list, note: str | None = None) -> dict:
-    """items: [(cohort name, Effect, extras dict)]. Judges the family as a whole."""
+def _family(key: str, question: str, unit: str, items: list, note: str | None = None,
+            descriptive: bool = False) -> dict:
+    """items: [(cohort name, Effect, extras dict)]. Judges the family as a whole.
+
+    descriptive=True marks a family whose verdicts say a label DESCRIBES something
+    (it uses information from the whole period) rather than predicts it. Such a
+    result is real but not an edge, so the desk never reports it as a finding to
+    act on."""
     verdicts = st.judge([e for _, e, _ in items])
     cohorts = []
     for (name, e, extra), (verdict, q) in zip(items, verdicts):
@@ -56,6 +62,8 @@ def _family(key: str, question: str, unit: str, items: list, note: str | None = 
            "tests": sum(1 for _, q in verdicts if q is not None), "cohorts": cohorts}
     if note:
         out["note"] = note
+    if descriptive:
+        out["descriptive"] = True
     return out
 
 
@@ -364,8 +372,77 @@ def _watch(rows: list) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Signals together (the cross-loop join)
+# ---------------------------------------------------------------------------
+
+def _together(rows: list) -> dict:
+    regimes = sorted({r["regime"] for r in rows if r["regime"]})
+
+    def versus(values_of, sub: list, mask: list, name: str, extra: dict | None = None):
+        return (name, st.gap_effect([values_of(r) for r in sub], mask, _dates(sub)),
+                {"n_high": sum(mask), "n_low": len(mask) - sum(mask), **(extra or {})})
+
+    # 1. Does the opening regime change how the Brief's directional calls do?
+    calls = [r for r in rows if r["regime"] and r["edge"] is not None]
+    by_regime = []
+    for g in regimes:
+        mask = [r["regime"] == g for r in calls]
+        by_regime.append(versus(lambda r: r["edge"], calls, mask, f"{g} at 09:45 minus the rest", {
+            "hit_rate": _hits([r for r, m in zip(calls, mask) if m]).get("hit_rate"),
+            "other_hit_rate": _hits([r for r, m in zip(calls, mask) if not m]).get("hit_rate")}))
+
+    # 2. Does the regime say anything about the SIZE of the day's move?
+    days = [r for r in rows if r["regime"] and r["abs_ret"] is not None]
+    size = [versus(lambda r: r["abs_ret"], days, [r["regime"] == g for r in days],
+                   f"{g} at 09:45 minus the rest") for g in regimes]
+    shared = [r for r in days if r["trend_share"] is not None]
+    describes = []
+    if shared:
+        thr, mask = st.median_split([r["trend_share"] for r in shared])
+        describes.append(versus(lambda r: r["abs_ret"], shared, mask,
+                                "more minus less of the session in TREND", {"threshold": thr}))
+
+    # 3. Do the Brief's calls hold better after 10:30 when the flow lean agrees?
+    conf = [r for r in rows if r["agree"] is not None and r["after_edge"] is not None]
+    agreement = ([versus(lambda r: r["after_edge"], conf, [r["agree"] for r in conf],
+                         "flow agrees minus flow disagrees")] if conf else [])
+
+    return {
+        "loop": "together", "label": "Signals together",
+        "store": "agent.sqlite3 + zerodte.sqlite3 + flow_learning.db",
+        "observation": "a Brief call with that day's 0DTE regime and ETF flow lean attached",
+        "coverage": ledger.coverage(rows),
+        "families": [
+            _family("regime_calls",
+                    "Do the Brief's directional calls do better in one opening regime?",
+                    "% move in the called direction (drift removed), that regime minus the others",
+                    by_regime,
+                    "The regime is the 0DTE engine's reading at 09:45 ET, fifteen minutes "
+                    "into the session the call is graded over."),
+            _family("regime_range",
+                    "Does the regime say anything about the size of the day's move?",
+                    "% absolute open-to-close move", size,
+                    "PIN should mean a quieter day and TREND a larger one. This asks it "
+                    "of the 09:45 reading, which is known early."),
+            _family("regime_describes",
+                    "Looking back, did sessions spent in TREND move more?",
+                    "% absolute open-to-close move", describes,
+                    "This uses the share of the WHOLE session spent in TREND, which is "
+                    "not known until the close. It checks that the label describes the "
+                    "day; it is not a forecast and not an edge.", descriptive=True),
+            _family("flow_agreement",
+                    "Do the Brief's calls hold better after 10:30 when the ETF flow lean agrees?",
+                    "% move from 10:30 to the close in the called direction, agree minus disagree",
+                    agreement,
+                    "Measured from 10:30, so the flow lean is known before the move it is "
+                    "asked about. Flat leans and neutral calls are left out."),
+        ],
+    }
+
+
 _BUILDERS = {"brief": _brief, "structure": _structure, "flow": _flow, "zerodte": _zerodte,
-             "watch": _watch}
+             "watch": _watch, "together": _together}
 
 
 # ---------------------------------------------------------------------------

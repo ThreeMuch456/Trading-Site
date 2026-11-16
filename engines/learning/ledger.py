@@ -24,6 +24,7 @@ what cross-signal work needs and what four separate databases could not do.
   flow       flow_learning.db    a day's index-ETF flow lean at a cutoff, labeled per horizon
   zerodte    zerodte.sqlite3     a touch of a 0DTE gamma level, resolved the same session
   watch      flow_learning.db    an auto-watched whale alert, followed 0 to 5 sessions on
+  together   (a join)            a Brief call with that day's 0DTE regime and ETF flow lean
 
 A missing store or table yields no rows; a loader never raises into its caller.
 """
@@ -39,7 +40,7 @@ from .. import config as econf
 
 log = logging.getLogger("engines.learning")
 
-LOOPS = ("brief", "structure", "flow", "zerodte", "watch")
+LOOPS = ("brief", "structure", "flow", "zerodte", "watch", "together")
 
 STORES = {
     "brief": "agent.sqlite3",
@@ -47,6 +48,7 @@ STORES = {
     "flow": "flow_learning.db",
     "zerodte": "zerodte.sqlite3",
     "watch": "flow_learning.db",      # the flow engine's second loop shares its store
+    "together": "agent.sqlite3",      # a join: the Brief's calls + the other loops' same-day signals
 }
 
 # The Brief's grading bands (engines/agent/grade_outcomes.py). Mirrored, not
@@ -304,8 +306,71 @@ def watch(data_dir: str | None = None) -> list:
     return rows
 
 
+def regime_days(data_dir: str | None = None) -> dict:
+    """{(date, ticker): digest row} from the 0DTE engine's permanent daily regime
+    digest (engines/zerodte/regime_digest.py). `open_regime` is the regime at
+    09:45 ET — known early; the *_share fields describe the whole session."""
+    raw = _query("zerodte", """
+        SELECT session_date, ticker, open_regime, pin_share, trend_share, transition_share
+        FROM regime_daily""", data_dir)
+    return {(r["session_date"], r["ticker"]): dict(r) for r in raw}
+
+
+FLOW_CONFIRM_CUTOFF, FLOW_CONFIRM_HORIZON = "10:30", "to_close"
+
+
+def together(data_dir: str | None = None) -> list:
+    """The cross-signal view: every Brief call with the SAME day's and ticker's
+    other signals attached. This is the join four separate databases could not do.
+
+      regime        the 0DTE regime at 09:45 ET (PIN / TREND / TRANSITION)
+      trend_share   share of the session spent in TREND (whole-day; not known early)
+      flow_dir      the ETF flow lean at 10:30 (+1 calls, -1 puts, 0 flat)
+      agree         whether a directional call and a directional flow lean match
+      after_edge    the ETF's move from 10:30 to the close in the BRIEF's direction,
+                    net of that ticker's average 10:30-to-close move. Measured
+                    from 10:30 so the flow lean is known before the move it is
+                    asked about.
+
+    `edge` / `hit` / `ret` are the Brief's own (open-to-close). Rows with neither
+    a regime nor a flow reading are dropped: they have nothing to be joined to."""
+    regimes = regime_days(data_dir)
+    confirm = {(r["date"], r["ticker"]): r for r in flow(data_dir)
+               if r["cutoff"] == FLOW_CONFIRM_CUTOFF and r["horizon"] == FLOW_CONFIRM_HORIZON}
+    drift: dict = {}
+    for r in confirm.values():
+        if r["ret"] is not None:
+            acc = drift.setdefault(r["ticker"], [0.0, 0])
+            acc[0] += r["ret"]
+            acc[1] += 1
+    rows = []
+    for b in brief(data_dir):
+        key = (b["date"], b["ticker"])
+        reg, fl = regimes.get(key), confirm.get(key)
+        if not reg and not fl:
+            continue
+        flow_dir = fl["direction"] if fl else None
+        agree = after = None
+        if fl and b["direction"] and flow_dir:
+            agree = b["direction"] == flow_dir
+        if fl and b["direction"] and fl["ret"] is not None:
+            s, n = drift[b["ticker"]]
+            after = b["direction"] * (fl["ret"] - s / n)
+        rows.append({
+            "loop": "together", "date": b["date"], "ticker": b["ticker"], "horizon": "day",
+            "bias": b["bias"], "direction": b["direction"],
+            "ret": b["ret"], "abs_ret": None if b["ret"] is None else abs(b["ret"]),
+            "edge": b["edge"], "hit": b["hit"],
+            "regime": (reg or {}).get("open_regime"),
+            "trend_share": _num((reg or {}).get("trend_share")),
+            "pin_share": _num((reg or {}).get("pin_share")),
+            "flow_dir": flow_dir, "agree": agree, "after_edge": after,
+        })
+    return rows
+
+
 LOADERS = {"brief": brief, "structure": structure, "flow": flow, "zerodte": zerodte,
-           "watch": watch}
+           "watch": watch, "together": together}
 
 
 def observations(loop: str, data_dir: str | None = None) -> list:

@@ -281,6 +281,7 @@ def healthz():
             ("structure.opportunities", "opportunities.db", "opportunities"),
             ("structure.outcomes",      "opportunities.db", "outcomes"),
             ("zerodte.touches",         "zerodte.sqlite3",  "touches"),
+            ("zerodte.regime_days",     "zerodte.sqlite3",  "regime_daily"),
             ("flow.sweep_alerts",       "flow.db",          "sweep_alerts"),
             ("flow.signals",            "flow_learning.db", "flow_signals"),
             ("flow.outcomes",           "flow_learning.db", "flow_outcomes"),

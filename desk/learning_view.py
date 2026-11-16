@@ -30,7 +30,8 @@ _MONTHS = ("", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
 # What one observation is called, per loop (singular, plural).
 _UNIT_NAME = {"brief": ("call", "calls"), "structure": ("labeled setup", "labeled setups"),
               "flow": ("flow lean", "flow leans"), "zerodte": ("level touch", "level touches"),
-              "watch": ("alert outcome", "alert outcomes")}
+              "watch": ("alert outcome", "alert outcomes"),
+              "together": ("call with context", "calls with context")}
 
 
 def _scorecard() -> dict | None:
@@ -180,9 +181,11 @@ def _family(f: dict, lead: bool) -> dict:
         "has_hit": any(r["hit"] != "—" for r in rows),
         "has_overlap": any(r["overlapping"] for r in rows),
         "has_dagger": any(r["dagger"] for r in rows),
+        "descriptive": bool(f.get("descriptive")),
         # The headline family is open; diagnostics fold away until wanted.
         "open": lead,
-        "summary": _tally_text(tally),
+        "summary": ("describes, does not predict · " if f.get("descriptive") else "")
+                   + _tally_text(tally),
     }
 
 
@@ -220,7 +223,8 @@ def _read(loop: dict) -> tuple:
         tail = f" (soonest needs {_plural(soonest, 'more session')})" if soonest else ""
         bits.append(f"{len(by['accumulating'])} still accumulating{tail}.")
     # A real finding in a diagnostic family must not hide behind a quiet headline.
-    deeper = [c for f in fams[1:] for c in f["cohorts"] if c["verdict"] in ("paying", "inverted")]
+    deeper = [c for f in fams[1:] if not f.get("descriptive")
+              for c in f["cohorts"] if c["verdict"] in ("paying", "inverted")]
     if deeper:
         found = "; ".join(f"{c.get('reading') or c['cohort']} "
                           f"({VERDICT[c['verdict']]['label'].lower()})" for c in deeper[:3])

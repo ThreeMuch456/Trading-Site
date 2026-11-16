@@ -149,6 +149,29 @@ def _prime() -> None:
     _run(_start_all(), timeout=120)
     _started = True
     log.info("zerodte engines primed (history + expiry discovery done)")
+    # Maintenance only fires every six hours, and a redeploy resets that clock, so
+    # digest once here too: a desk that is redeployed daily would otherwise never
+    # reach it.
+    _digest_regimes()
+
+
+def _digest_regimes() -> None:
+    """Reduce each finished session's regime events to its permanent one-row
+    digest (regime_digest.py) and load the bundled digest of the standalone
+    tool's history. Insert-only, so repeat calls are no-ops; never raises."""
+    if _db is None:
+        return
+    try:
+        from datetime import time as _time, timedelta as _td
+        from . import regime_digest
+        now = datetime.now(zconf.ET)
+        done = now.date() if now.time() >= _time(16, 20) else now.date() - _td(days=1)
+        seeded = regime_digest.seed(_db)
+        wrote = regime_digest.run(_db, done.isoformat())
+        if seeded or wrote:
+            log.info("zerodte regime digest: %d legacy + %d new session rows", seeded, wrote)
+    except Exception:
+        log.exception("zerodte regime digest error")
 
 
 # --------------------------------------------------------- the writer (polls)
@@ -187,6 +210,8 @@ def _maintenance() -> None:
     nothing is out of window)."""
     if not _built or _db is None:
         return
+    # Before anything is pruned: keep the regime history the events carry.
+    _digest_regimes()
     try:
         today = datetime.now(zconf.ET).date().isoformat()
         deleted = _db.prune(today)
