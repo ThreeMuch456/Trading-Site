@@ -31,6 +31,45 @@ from datetime import datetime as _dt, timezone as _tz
 _HOST = _socket.gethostname()
 _STARTED_AT = _dt.now(_tz.utc).isoformat(timespec="seconds")
 
+
+def _process_info() -> dict:
+    """Which process answered, and how many web workers are actually running.
+
+    The scheduler, the engine caches and the 0DTE live state all live in process
+    memory and assume exactly ONE worker (see Procfile). With two, every scheduled
+    job runs twice and each worker serves its own copy of that state. `workers`
+    counts the processes sharing our parent (gunicorn's master), and the *_flag /
+    env fields show where a wrong count is coming from. Linux-only detail (/proc);
+    anywhere else it reports just the pid."""
+    info = {"pid": os.getpid(), "host": _HOST, "started_at": _STARTED_AT}
+    try:
+        ppid = os.getppid()
+        n = 0
+        for d in os.listdir("/proc"):
+            if not d.isdigit():
+                continue
+            try:
+                with open(f"/proc/{d}/stat") as f:
+                    # "pid (comm) state ppid ..." — comm may hold spaces, so cut after ')'
+                    if int(f.read().rsplit(")", 1)[1].split()[1]) == ppid:
+                        n += 1
+            except Exception:
+                continue
+        info["workers"] = n
+        with open(f"/proc/{ppid}/cmdline", "rb") as f:
+            argv = [a for a in f.read().decode("utf-8", "replace").split("\0") if a]
+        info["parent"] = os.path.basename(argv[1] if len(argv) > 1 and "python" in argv[0] else argv[0])
+        for i, a in enumerate(argv):
+            if a in ("--workers", "-w") and i + 1 < len(argv):
+                info["workers_flag"] = argv[i + 1]
+            elif a.startswith("--workers="):
+                info["workers_flag"] = a.split("=", 1)[1]
+        info["web_concurrency_env"] = os.environ.get("WEB_CONCURRENCY")
+        info["gunicorn_cmd_args_env"] = bool(os.environ.get("GUNICORN_CMD_ARGS"))
+    except Exception:
+        pass
+    return info
+
 # One-time import of the standalone tools' learning history. A no-op unless files
 # have been dropped into <data dir>/legacy/; runs before the scheduler so no
 # engine job is writing while rows are merged. Never allowed to stop the boot.
@@ -183,7 +222,7 @@ def healthz():
         "sources_degraded": s.get("degraded", {}),
         # Which process answered. The scheduler assumes exactly one: if repeated
         # calls show more than one pid/host, every scheduled job is running twice.
-        "process": {"pid": os.getpid(), "host": _HOST, "started_at": _STARTED_AT},
+        "process": _process_info(),
     }
     # Surface the morning-brief generator's last-run state so a failed brief is
     # diagnosable from here rather than only from the deploy logs. The adapter can
