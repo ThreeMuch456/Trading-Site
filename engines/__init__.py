@@ -44,6 +44,7 @@ _ENGINE_MODULES: list[str] = [
     "engines.zerodte",      # Phase 3
     "engines.agent",        # Phase 4
     "engines.structure",    # Phase 5
+    "engines.learning",     # shared learning ledger + scorecard (reads the stores above)
 ]
 
 _loaded = False

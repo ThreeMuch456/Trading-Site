@@ -213,6 +213,17 @@ def eod():
     return render_template("eod.html")
 
 
+@app.route("/api/learning.json")
+def learning_json():
+    """The learning scorecard: every loop's cohorts judged by one method in one
+    vocabulary (engines/learning). ?loop=brief|structure|flow|zerodte narrows it.
+    Gated like every page."""
+    from engines import produce
+    loop = request.args.get("loop", "")
+    return produce("local://learning/api/scorecard.json"
+                   + (f"?loop={loop}" if loop.isalpha() else ""))
+
+
 @app.route("/healthz")
 def healthz():
     s = get_snapshot()
@@ -297,6 +308,14 @@ def healthz():
         try:
             from engines import legacy_import as _legacy
             out["legacy_import"] = _legacy.last_report()
+        except Exception:
+            pass
+        # The learning scorecard in brief: per loop, how many session dates of
+        # history it holds and how its headline cohorts are judged. Cached, so
+        # this costs a dict lookup on all but one call every few minutes.
+        try:
+            from engines.learning import scorecard as _card
+            out["learning"] = _card.summary(_card.cached())
         except Exception:
             pass
     except Exception:
