@@ -162,6 +162,9 @@ def _attach_scorecard(s: dict) -> None:
         tiles = learning_view.structure_tiles()
         if tiles:
             s.setdefault("structure", {})["scorecard"] = tiles
+            # Each rec carries the learned edge of its own kind of setup.
+            for r in s["structure"].get("recs") or []:
+                r["edge"] = tiles["edges"].get(learning_view.rec_setup(r)) or []
         # Intraday: tested flow readings instead of per-label hold rates, which
         # could only read 100% or 0% (the label is assigned after the outcome).
         levels = learning_view.zerodte_panel()

@@ -740,3 +740,54 @@ def test_gameplan_and_eod_apply_the_brief_feedback(tmp_path, monkeypatch):
     assert {"Directional calls", "Timing edge", "Neutral calls", "Conviction"} <= set(tiles)
     assert "30-session acc." not in tiles and tiles["Timing edge"]["v"]["label"] == "Noise"
     assert "1/2" in s["eod"]["summary_html"]
+
+
+def test_structure_recs_carry_the_learned_edge_of_their_own_setup(planted_view):
+    from desk import fetch
+    lv = planted_view
+    tiles = lv.structure_tiles()
+    assert [e["horizon"] for e in tiles["edges"]["support"]] == ["5d", "10d"]
+    assert tiles["edges"]["support"][0]["verdict"] == "paying"
+    assert "90% interval" in tiles["edges"]["support"][0]["tip"]
+    assert "needs 40 more sessions" in tiles["edges"]["support"][1]["tip"]
+    # The planted score was random, so the table must say it has not ranked outcomes.
+    assert "has not ranked outcomes" in tiles["score_note"]
+
+    assert lv.rec_setup({"setup": "flag"}) == "flag"                       # live rows say
+    assert lv.rec_setup({"zone": "Thin resistance", "comp": {"z": True}}) == "resistance"
+    assert lv.rec_setup({"zone": "Thin support", "comp": {"z": True}}) == "support"
+    assert lv.rec_setup({"zone": "Thin support", "comp": {"z": False, "f": True}}) == "flag"
+
+    s = {"eod": {}, "structure": {"recs": [
+        {"sym": "AAA", "setup": "support"}, {"sym": "BBB", "setup": "resistance"},
+        {"sym": "CCC", "zone": "Thin support", "comp": {"z": False, "f": True}},
+        {"sym": "DDD", "setup": "something-new"}]}}
+    fetch._attach_scorecard(s)
+    recs = {r["sym"]: r for r in s["structure"]["recs"]}
+    assert [e["verdict"] for e in recs["AAA"]["edge"]] == ["paying", "accumulating"]
+    assert recs["BBB"]["edge"][0]["verdict"] == "inverted"
+    assert recs["CCC"]["edge"][0]["verdict"] == "noise"                    # flags
+    assert recs["DDD"]["edge"] == []                                       # unknown kind: no chip
+
+
+def test_structure_adapter_tags_each_rec_with_its_setup_type():
+    from desk.sources import structure as src
+    zone_up = src._row({"ticker": "A", "direction": "up", "components": {"zone": True}}, {}, {})
+    zone_dn = src._row({"ticker": "B", "direction": "down", "components": {"zone": True, "flag": True}}, {}, {})
+    flag = src._row({"ticker": "C", "direction": "up", "components": {"flag": True, "gex": True}}, {}, {})
+    assert (zone_up["setup"], zone_dn["setup"], flag["setup"]) == ("resistance", "support", "flag")
+
+
+def test_structure_page_renders_a_chip_per_rec(planted_view, monkeypatch):
+    """Render the real template over sample recs with the scorecard attached."""
+    import app as appmod
+    from desk import fetch, sample_data
+    s = sample_data.snapshot()
+    s.update({"mock": True, "live": False, "degraded": {}})
+    fetch._attach_scorecard(s)
+    monkeypatch.setattr(appmod, "get_snapshot", lambda *a, **k: s)
+    html = appmod.app.test_client().get("/structure").get_data(as_text=True)
+    assert "<th class=\"l\">Learned edge</th>" in html
+    assert html.count("edge-chip") >= len(s["structure"]["recs"])       # at least one per rec
+    assert "has not ranked outcomes" in html and "Setup Edge" in html
+    assert "90% interval" in html                                       # the hover text

@@ -28,7 +28,8 @@
           <tr>
             <th class="l">Ticker</th><th>Price</th><th class="c">Dir</th><th class="l">Thin Zone</th>
             <th>Dist</th><th class="c">Components</th><th class="c">Rotation</th>
-            <th class="c">Quant</th><th class="c">Live</th><th>Combined</th>
+            <th class="c">Quant</th><th class="c">Live</th>
+            {% if s.structure.scorecard %}<th class="l">Learned edge</th>{% endif %}<th>Combined</th>
           </tr>
         </thead>
         <tbody>
@@ -41,6 +42,7 @@
             <td class="c"><span class="q-tag {{ r.rotation_class }}">{{ r.rotation }}</span></td>
             <td class="c {{ r.quant_class }}">{{ r.quant }}</td>
             <td class="c"><span class="badge {{ r.live_class }}">{{ r.live }}</span></td>
+            {% if s.structure.scorecard %}<td class="l">{% for e in r.edge %}<span class="verdict {{ e.v.cls }} edge-chip" title="{{ e.tip }}"><i>{{ e.v.glyph }}</i>{{ e.horizon }} {{ e.value }}</span>{% else %}<span class="flat">—</span>{% endfor %}</td>{% endif %}
             <td><div class="score-cell"><span class="score-track"><span class="score-fill" style="width:{{ r.score_pct }}%; background:{{ r.score_color }}"></span></span><span class="score-val {{ r.score_class }}">{{ r.score }}</span></div></td>
           </tr>
           {% endfor %}
@@ -53,6 +55,9 @@
       0 and drops off. Amplifiers (G/R) shown amber. <b>Rotation</b> comes from the Sector-Scanner RRG quadrant,
       <b>Quant</b> from the Stock Deep-Dive scorecard (0–100), <b>Live</b> from the intraday activation monitor
       (15-min delayed confirmation, never a trigger).
+      {% if s.structure.scorecard %}<b>Learned edge</b> is the history of that rec's own kind of setup — its
+      return over the benchmark at 5 and 10 days, with a verdict (hover for the interval); it is the same for
+      every rec of that kind. {{ s.structure.scorecard.score_note }}{% endif %}
     </div>
   </div>
 </div>

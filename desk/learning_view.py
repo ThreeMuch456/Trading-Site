@@ -439,5 +439,43 @@ def structure_tiles() -> dict | None:
                     if lo is not None and c.get("hit_rate") is not None else f"n = {c.get('n', 0):,}"),
             "needs": _needs_text(c.get("needs")),
         })
-    return {"tiles": tiles, "sessions": (loop.get("coverage") or {}).get("dates") or 0,
+    # Per setup type, one chip per horizon — stamped onto each recommendation so the
+    # history of its kind of setup travels with it.
+    edges: dict = {}
+    for c in cohorts:
+        typ, _, horizon = c["cohort"].partition(" · ")
+        lo, hi = c.get("ci_low"), c.get("ci_high")
+        v = VERDICT[c["verdict"]]
+        tip = f"{c['cohort']}: {_signed(c.get('effect'), unit)}% vs benchmark"
+        if lo is not None and hi is not None:
+            tip += f" (90% interval {_signed(lo, unit)} to {_signed(hi, unit)})"
+        tip += f" over {c.get('n_clusters') or 0} sessions — {v['label'].lower()}"
+        if c.get("needs"):
+            tip += f"; needs {_needs_text(c['needs'])}"
+        edges.setdefault(typ, []).append({"horizon": horizon, "v": v, "verdict": c["verdict"],
+                                          "value": f"{_signed(c.get('effect'), unit)}%", "tip": tip})
+    # Does the combined score — the column the table is sorted by — rank outcomes?
+    score = (loop["families"][1]["cohorts"] if len(loop["families"]) > 1 else [])
+    judged = [c for c in score if c["verdict"] != "accumulating"]
+    if any(c["verdict"] == "paying" for c in judged):
+        score_note = "Higher-scored setups have done reliably better than lower-scored ones."
+    elif any(c["verdict"] == "inverted" for c in judged):
+        score_note = "Higher-scored setups have done reliably WORSE than lower-scored ones."
+    elif judged:
+        score_note = ("So far the score has not ranked outcomes: higher-scored setups have done "
+                      "no better than lower-scored ones.")
+    else:
+        score_note = ""
+    return {"tiles": tiles, "edges": edges, "score_note": score_note,
+            "sessions": (loop.get("coverage") or {}).get("dates") or 0,
             "outcomes": (loop.get("coverage") or {}).get("observations") or 0}
+
+
+def rec_setup(row: dict) -> str:
+    """The scorecard setup type a Structure rec belongs to. Rows from the live
+    adapter carry it; sample rows are read from their zone text and components."""
+    if row.get("setup"):
+        return row["setup"]
+    if (row.get("comp") or {}).get("z"):
+        return "resistance" if "resist" in str(row.get("zone", "")).lower() else "support"
+    return "flag"

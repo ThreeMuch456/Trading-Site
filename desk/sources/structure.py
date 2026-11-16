@@ -154,6 +154,9 @@ def _row(r: dict, quad: dict, quant: dict) -> dict:
         "dir": "▲ Up" if up else "▼ Down",
         "dir_class": "dir-up" if up else "dir-dn",
         "zone": "Thin resistance" if up else "Thin support",
+        # Which learning cohort this rec belongs to (the scorecard's setup types):
+        # its thin zone when the zone component qualifies, otherwise the flag.
+        "setup": ("resistance" if up else "support") if comp.get("zone") else "flag",
         "dist": dist,
         "comp": {"z": bool(comp.get("zone")), "f": bool(comp.get("flag")),
                  "g": "amp" if comp.get("gex") else False,

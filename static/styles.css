@@ -456,6 +456,7 @@ details.fam[open] > summary::before { content:"▾"; }
 table.score tbody td { padding:9px 12px; }
 table.score .dim { color:#8fa3c0; }
 .dagger { color:var(--amber); font-weight:700; }
+.edge-chip { margin-right:5px; text-transform:none; letter-spacing:0.03em; font-variant-numeric:tabular-nums; }
 .nav { scrollbar-width:none; } .nav::-webkit-scrollbar { display:none; }
 .table-wrap { scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
 table.score tbody td.tk { white-space:normal; min-width:150px; }
