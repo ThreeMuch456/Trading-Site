@@ -167,8 +167,47 @@ def _attach_scorecard(s: dict) -> None:
         levels = learning_view.zerodte_panel()
         if levels:
             s.setdefault("intraday", {})["level_record"] = levels
+        _apply_brief_feedback(s, learning_view)
     except Exception:
         pass
+
+
+def _apply_brief_feedback(s: dict, learning_view) -> None:
+    """Apply the Brief's own history to today's Brief, in code.
+
+    Gameplan: each ticker gets `learned` — the calibrated probability its call
+    verifies (or "no call" for neutral), which the card shows in place of the
+    model's self-reported conviction. EOD: neutral rows are marked "No call" and
+    left out of the day's tally while neutral has not beaten its base rate, and
+    the performance tiles become full-history figures with verdicts."""
+    learned = learning_view.brief_calls(
+        [{"sym": t.get("sym"), "bias": t.get("bias"), "conviction": t.get("conviction")}
+         for t in s.get("tickers", [])])
+    if not learned:
+        return
+    for t in s.get("tickers", []):
+        if t.get("sym") in learned:
+            t["learned"] = learned[t["sym"]]
+
+    eod = s.setdefault("eod", {})
+    grades = eod.get("grades") or []
+    if learning_view.neutral_is_a_call() is False:
+        for g in grades:
+            if str(g.get("bias", "")).lower() in ("neutral", "cautious"):
+                g["correct"], g["correct_class"] = "No call", "nocall"
+    right = sum(1 for g in grades if g.get("correct") == "Yes")
+    judged = sum(1 for g in grades if g.get("correct") in ("Yes", "No"))
+    if not s.get("mock") and any(g.get("correct") == "No call" for g in grades):
+        # The adapter's one-line read counted the neutral rows; restate it without them.
+        from .sources.agent import _eod_summary
+        eod["summary_html"] = _eod_summary(right, judged)
+    today = {"label": "Today", "value": f"{right} / {judged}" if judged else "—",
+             "value_class": "up" if (judged and right == judged) else "",
+             "sub": "directional calls verified"}
+    tiles = learning_view.brief_tiles(today)
+    if tiles:
+        eod["performance"] = tiles
+        eod["performance_scorecard"] = True
 
 
 def _collect(name: str):

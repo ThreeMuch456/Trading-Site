@@ -363,6 +363,7 @@ table.data .tk { font-weight:700; letter-spacing:0.04em; }
   padding:2px 7px; border-radius:3px; }
 .grade-tag.yes { background:var(--green-dim); color:var(--green); }
 .grade-tag.no { background:var(--red-dim); color:var(--red); }
+.grade-tag.nocall { background:var(--surface2); color:var(--v-noise); border:1px solid var(--border); }
 .perf-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px;
   margin-top:4px; }
 .perf { background:var(--surface2); border:1px solid var(--border); border-radius:5px; padding:11px 13px; }

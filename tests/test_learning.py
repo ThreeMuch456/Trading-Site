@@ -622,3 +622,121 @@ def test_intraday_level_record_shows_tested_readings_not_label_hold_rates(tmp_pa
     html = appmod.app.test_client().get("/intraday").get_data(as_text=True)
     assert "what the history shows" in html and "Buy-aggressive option volume" in html
     assert "Level Behaviour — calibration" not in html                  # the circular panel is gone
+
+
+# ---------------------------------------------------------------------------
+# deterministic feedback (engines/learning/feedback.py)
+# ---------------------------------------------------------------------------
+
+def _brief_history(path, bullish_p=0.5, bearish_p=0.5, days=70, seed=3):
+    """Directional calls on three tickers that verify with the given probabilities,
+    plus neutral calls that are right exactly as often as any day is quiet."""
+    rng = random.Random(seed)
+    calls = []
+    for i in range(days):
+        day = f"2026-{7 + i // 28:02d}-{1 + i % 28:02d}"
+        per = {}
+        for tk in ("SPY", "QQQ", "IWM"):
+            roll = rng.random()
+            if roll < 0.2:
+                pct = rng.gauss(0, 0.8)
+                per[tk] = ("neutral", None, pct, int(abs(pct) <= 0.25), 1.0)
+                continue
+            bias = "bullish" if roll < 0.6 else "bearish"
+            right = rng.random() < (bullish_p if bias == "bullish" else bearish_p)
+            # Same move-size distribution as the neutral days, so the rate at which
+            # ANY day stays in the neutral band is what neutral calls actually hit.
+            size = abs(rng.gauss(0, 0.8))
+            pct = size if (bias == "bullish") == right else -size
+            per[tk] = (bias, rng.choice([0.45, 0.5, 0.55, 0.6]), pct, int(right), 1.0)
+        calls.append((day, per))
+    _brief_store(path, calls)
+
+
+def test_feedback_uses_a_distinction_only_when_the_scorecard_judged_it_real(tmp_path):
+    from engines.learning import feedback
+    # 1) Nothing real: both biases verify at 50%. Whatever their sample rates
+    #    happen to be, every call gets the pooled rate.
+    d1 = str(tmp_path / "flat"); os.makedirs(d1)
+    _brief_history(os.path.join(d1, "agent.sqlite3"))
+    fb = feedback.brief(scorecard.build(d1))
+    assert fb["available"] and fb["real"] == []
+    pooled = fb["directional"]["p"]
+    assert fb["by_bias"]["bullish"]["p"] == fb["by_bias"]["bearish"]["p"] == pooled
+    assert not fb["by_bias"]["bullish"]["own"]
+    call = feedback.brief_call(fb, "Bullish", "SPY")
+    assert call["kind"] == "directional" and call["p"] == pooled and call["basis"] == feedback.POOLED
+    assert call["low"] < pooled < call["high"]
+    # Neutral has matched its base rate, so it is a no-call, not a forecast.
+    assert fb["neutral"]["informative"] is False
+    assert feedback.brief_call(fb, "neutral", "QQQ")["kind"] == "no_call"
+
+    # 2) Bullish calls really do verify far more often: that cohort earns its own
+    #    rate, shrunk toward the pooled one; bearish does not.
+    d2 = str(tmp_path / "skill"); os.makedirs(d2)
+    _brief_history(os.path.join(d2, "agent.sqlite3"), bullish_p=0.9, bearish_p=0.5)
+    fb2 = feedback.brief(scorecard.build(d2))
+    assert any(r["cohort"] == "bullish" and r["verdict"] == st.PAYING for r in fb2["real"])
+    bull = fb2["by_bias"]["bullish"]
+    raw = next(r["hit_rate"] for r in fb2["real"] if r["cohort"] == "bullish") / 100
+    assert bull["own"] and fb2["directional"]["p"] < bull["p"] < raw      # shrunk, not raw
+    assert feedback.brief_call(fb2, "bullish", "SPY")["p"] >= bull["p"] - 1e-9
+    assert feedback.brief(scorecard.build(str(tmp_path))) == {"available": False}   # no history
+
+
+def test_prompt_block_states_verdicts_and_only_what_they_support(tmp_path):
+    from engines.learning import feedback
+    d = str(tmp_path)
+    _brief_history(os.path.join(d, "agent.sqlite3"))
+    fb = feedback.brief(scorecard.build(d))
+    block = feedback.brief_prompt_block(fb)
+    assert block.startswith("=== HISTORICAL PERFORMANCE CONTEXT ===")   # the header the system prompt keys on
+    assert block.endswith("=== END HISTORICAL CONTEXT ===")
+    assert "verdict: NOISE" in block
+    assert "Do not raise or lower conviction for any of them." in block
+    assert "Neutral has carried no information" in block and "FOMC" not in block
+    assert f"Set conviction near {fb['directional']['p']:.2f}" in block
+    assert "TODAY IS FOMC" in feedback.brief_prompt_block(fb, fomc_today=True)
+    assert feedback.brief_prompt_block({"available": False}) == ""
+
+
+def test_brief_prompt_prefers_the_scorecard_block_and_falls_back(tmp_path, monkeypatch):
+    from engines.agent import synthesize_gameplan as sg
+    from engines.learning import feedback
+    d = str(tmp_path)
+    _brief_history(os.path.join(d, "agent.sqlite3"))
+    card = scorecard.build(d)
+    monkeypatch.setattr(feedback._scorecard, "cached", lambda *a, **k: card)
+    macro = {"economic_releases": [{"event": "FOMC Rate Decision", "days_away": 0}]}
+    block = sg._build_historical_context(macro, {})
+    assert "Full graded history" in block and "TODAY IS FOMC" in block
+    # Scorecard unavailable -> the legacy block (or nothing), never an exception.
+    monkeypatch.setattr(feedback, "brief", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
+    assert "Full graded history" not in sg._build_historical_context(macro, {})
+
+
+def test_gameplan_and_eod_apply_the_brief_feedback(tmp_path, monkeypatch):
+    from desk import fetch, learning_view as lv
+    d = str(tmp_path)
+    _brief_history(os.path.join(d, "agent.sqlite3"))
+    card = scorecard.build(d)
+    monkeypatch.setattr(lv, "_scorecard", lambda: card)
+    s = {"tickers": [{"sym": "SPY", "bias": "Bullish", "conviction": "0.52"},
+                     {"sym": "QQQ", "bias": "Neutral", "conviction": "—"}],
+         "eod": {"grades": [{"sym": "SPY", "bias": "Bullish", "correct": "Yes", "correct_class": "yes"},
+                            {"sym": "QQQ", "bias": "Neutral", "correct": "No", "correct_class": "no"},
+                            {"sym": "IWM", "bias": "Bearish", "correct": "No", "correct_class": "no"}],
+                 "summary_html": "old", "performance": [{"label": "30-session acc."}]}}
+    fetch._attach_scorecard(s)
+    spy, qqq = s["tickers"]
+    assert spy["learned"]["kind"] == "directional" and spy["learned"]["value"].endswith("%")
+    assert "model stated 0.52" in spy["learned"]["text"] and "–" in spy["learned"]["range"]
+    assert qqq["learned"]["kind"] == "no_call" and "model stated" not in qqq["learned"]["text"]
+    grades = {g["sym"]: g for g in s["eod"]["grades"]}
+    assert grades["QQQ"]["correct"] == "No call" and grades["QQQ"]["correct_class"] == "nocall"
+    assert grades["IWM"]["correct"] == "No"                              # a wrong directional call stays wrong
+    tiles = {t["label"]: t for t in s["eod"]["performance"]}
+    assert tiles["Today"]["value"] == "1 / 2"                            # the neutral row is not in the tally
+    assert {"Directional calls", "Timing edge", "Neutral calls", "Conviction"} <= set(tiles)
+    assert "30-session acc." not in tiles and tiles["Timing edge"]["v"]["label"] == "Noise"
+    assert "1/2" in s["eod"]["summary_html"]

@@ -298,6 +298,94 @@ def digest() -> list:
     return out
 
 
+def _brief_feedback() -> dict:
+    card = _scorecard()
+    if not card:
+        return {"available": False}
+    try:
+        from engines.learning import feedback
+        return feedback.brief(card)
+    except Exception:
+        return {"available": False}
+
+
+def brief_calls(tickers: list) -> dict:
+    """Per ticker, what the Brief's history says about TODAY's call — computed in
+    code from the scorecard, replacing two things on the Gameplan card: the
+    model's self-reported conviction as the headline number (it has not been
+    informative) and the per-ticker recent-accuracy chip (no error bar).
+
+    tickers: [{"sym", "bias", "conviction"}]. Returns {sym: learned} or {}."""
+    fb = _brief_feedback()
+    if not fb.get("available"):
+        return {}
+    from engines.learning import feedback
+    d = fb["directional"]
+    out = {}
+    for t in tickers:
+        call = feedback.brief_call(fb, t.get("bias"), t.get("sym"))
+        stated = t.get("conviction")
+        stated_txt = f" · model stated {stated}" if stated not in (None, "", "—") else ""
+        if call["kind"] == "directional":
+            pct = int(round(100 * call["p"]))
+            rng = f"{100 * call['low']:.0f}–{100 * call['high']:.0f}%"
+            if call["own"]:
+                why = (f"{call['basis']} calls have verified {pct}% over {call['n']} graded, "
+                       f"judged {VERDICT[call['verdict']]['label'].lower()}")
+            else:
+                why = (f"directional calls have verified {d['hits']} of {d['graded']} graded; "
+                       "no bias, ticker or gamma split differs reliably")
+            out[t["sym"]] = {"kind": "directional", "pct": pct, "value": f"{pct}%", "range": rng,
+                             "text": f"{why}{stated_txt}"}
+        elif call["kind"] == "no_call":
+            out[t["sym"]] = {
+                "kind": "no_call", "value": "No call",
+                "text": (f"neutral calls have verified {call['hit_rate']:.0f}% against "
+                         f"{call['base_rate']:.0f}% of all days staying in the band, so neutral "
+                         f"has carried no information yet{stated_txt}")}
+        elif call["kind"] == "range":
+            pct = int(round(100 * call["p"]))
+            out[t["sym"]] = {"kind": "range", "pct": pct, "value": f"{pct}%",
+                             "text": f"neutral calls have verified {pct}% over {call['n']} graded"}
+    return out
+
+
+def brief_tiles(today: dict | None = None) -> list:
+    """EOD performance tiles from the full history. Replaces the recent-30-session
+    accuracy (which mixed in neutral calls), the 'best regime' tile (the maximum
+    of several noisy buckets, so biased upward by construction) and the
+    always-bullish baseline (drift is now removed inside the edge itself)."""
+    fb = _brief_feedback()
+    if not fb.get("available"):
+        return []
+    d, neu, conv = fb["directional"], fb["neutral"], fb["conviction"]
+    tiles = []
+    if today:
+        tiles.append(today)
+    tiles.append({"label": "Directional calls", "value": f"{d['hit_rate']:.1f}%", "value_class": "",
+                  "sub": f"{d['hits']} / {d['graded']} verified · {fb['sessions']} sessions"})
+    tiles.append({"label": "Timing edge", "value": f"{d['edge']:+.2f}%", "value_class": "",
+                  "sub": f"{d['ci_low']:+.2f} to {d['ci_high']:+.2f} per call",
+                  "v": VERDICT[d["verdict"]]})
+    if neu.get("graded"):
+        tiles.append({"label": "Neutral calls", "value": f"{neu['hit_rate']:.0f}%", "value_class": "",
+                      "sub": f"vs {neu['base_rate']:.0f}% of all days · {neu['graded']} graded",
+                      "v": VERDICT[neu["verdict"]] if neu.get("verdict") in VERDICT else None})
+    if conv.get("gap") is not None:
+        tiles.append({"label": "Conviction", "value": f"{conv['gap']:+.1f} pp", "value_class": "",
+                      "sub": "high vs low conviction"
+                             + (f" · Brier {conv['brier']:.2f}" if conv.get("brier") is not None else ""),
+                      "v": VERDICT[conv["verdict"]] if conv.get("verdict") in VERDICT else None})
+    return tiles
+
+
+def neutral_is_a_call() -> bool | None:
+    """True once neutral calls have earned `paying`; False while they have not;
+    None when there is no history to say."""
+    fb = _brief_feedback()
+    return fb["neutral"]["informative"] if fb.get("available") else None
+
+
 def zerodte_panel() -> dict | None:
     """The Intraday page's level record. Replaces the per-label hold rates, which
     could only ever read 100% or 0% because a touch's label is assigned after its

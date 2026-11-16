@@ -51,13 +51,18 @@
     </div>
     <div class="perf-grid">
       {% for p in s.eod.performance %}
-      <div class="perf"><div class="pl">{{ p.label }}</div><div class="pv {{ p.value_class }}">{{ p.value }}</div><div class="ps">{{ p.sub }}</div></div>
+      <div class="perf"><div class="pl">{{ p.label }}</div><div class="pv {{ p.value_class }}">{{ p.value }}</div><div class="ps">{{ p.sub }}</div>{% if p.v %}<div style="margin-top:7px;"><span class="verdict {{ p.v.cls }}"><i>{{ p.v.glyph }}</i>{{ p.v.label }}</span></div>{% endif %}</div>
       {% endfor %}
     </div>
     <div class="note">
       Grading feeds the learning loop — each day's bias is scored open→close and fed back into tomorrow's
+      {% if s.eod.performance_scorecard %}
+      synthesis as verdicts over the full history, not as raw recent accuracy. A directional call is right or
+      wrong by the day's direction; a neutral call is shown as <b>No call</b> and left out of the tally while
+      neutral calls have not beaten the rate at which any day stays in the band.
+      {% else %}
       synthesis to temper conviction where a condition (ticker · bias · gamma regime) has a weak history.
-      The tiles above cover recent sessions only; the Track Record below is the full history.
+      {% endif %}
     </div>
     {% if s.eod.track_record and s.eod.track_record.lines %}
     <div class="track">

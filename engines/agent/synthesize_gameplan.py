@@ -117,7 +117,24 @@ Be specific with price levels. Use the data provided — do not invent numbers.
 
 
 def _build_historical_context(macro_data: dict, options_data: dict) -> str:
-    """Pull recent scored outcomes from the journal and format for prompt injection."""
+    """The HISTORICAL PERFORMANCE CONTEXT block for the prompt.
+
+    Preferred source: the shared learning scorecard (engines/learning/feedback.py),
+    which states the FULL graded history as verdicts and tells the model only what
+    they support. The block this function used to build — raw 30-session accuracy
+    per ticker / bias / gamma bucket, with a warning for any bucket under a fixed
+    line — asked the model to react to differences the history cannot tell from
+    chance. That older block remains below as the fallback for when the scorecard
+    is unavailable."""
+    try:
+        from ..learning import feedback
+        fomc = any("FOMC" in e.get("event", "") and e.get("days_away", 1) == 0
+                   for e in macro_data.get("economic_releases", []))
+        block = feedback.brief_prompt_block(feedback.brief(), fomc_today=fomc)
+        if block:
+            return block
+    except Exception:
+        pass
     try:
         from .journal import get_performance_stats
         stats = get_performance_stats(n_sessions=30)

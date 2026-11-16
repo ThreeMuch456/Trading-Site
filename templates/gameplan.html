@@ -28,13 +28,20 @@
     </div>
     <div class="ai-block">
       <div class="abh"><span class="ablabel">AI</span><span class="bias-tag {{ t.bias_class }}">{{ t.bias }}</span></div>
+      {% if t.learned and t.learned.kind == 'no_call' %}
+      <div class="conv"><span class="cl">Calibrated</span><span class="cv" style="color:var(--muted);">No directional call</span></div>
+      {% elif t.learned %}
+      <div class="conv"><span class="cl">Calibrated</span><span class="conv-track"><span class="conv-fill" style="width:{{ t.learned.pct }}%; background:{{ t.conviction_color }}"></span></span><span class="cv">{{ t.learned.value }}</span>{% if t.learned.range %}<span class="cl" style="text-transform:none; letter-spacing:0.02em;">{{ t.learned.range }}</span>{% endif %}</div>
+      {% else %}
       <div class="conv"><span class="cl">Conviction</span><span class="conv-track"><span class="conv-fill" style="width:{{ t.conviction_pct }}%; background:{{ t.conviction_color }}"></span></span><span class="cv">{{ t.conviction }}</span></div>
+      {% endif %}
       <div class="cases">
         <div class="case bull"><div class="cl">Bull</div>{{ t.bull|safe }}</div>
         <div class="case bear"><div class="cl">Bear</div>{{ t.bear|safe }}</div>
       </div>
       <div class="rflags">{% for f in t.risk_flags %}<span class="rflag">{{ f }}</span>{% endfor %}</div>
-      {% if t.calib %}<div class="calib">◆ Track record · <b>{{ t.calib.acc }}%</b> {{ t.sym }} bias accuracy over {{ t.calib.n }} sessions</div>{% endif %}
+      {% if t.learned %}<div class="calib">◆ From the track record · {{ t.learned.text }}. <a href="{{ url_for('learning') }}#loop-brief">Scorecard →</a></div>
+      {% elif t.calib %}<div class="calib">◆ Track record · <b>{{ t.calib.acc }}%</b> {{ t.sym }} bias accuracy over {{ t.calib.n }} sessions</div>{% endif %}
     </div>
     <div class="ladder">
       {% for lv in t.levels %}
