@@ -23,6 +23,7 @@ what cross-signal work needs and what four separate databases could not do.
   structure  opportunities.db    a thin-zone / flag setup, labeled at a 5- or 10-day horizon
   flow       flow_learning.db    a day's index-ETF flow lean at a cutoff, labeled per horizon
   zerodte    zerodte.sqlite3     a touch of a 0DTE gamma level, resolved the same session
+  watch      flow_learning.db    an auto-watched whale alert, followed 0 to 5 sessions on
 
 A missing store or table yields no rows; a loader never raises into its caller.
 """
@@ -38,13 +39,14 @@ from .. import config as econf
 
 log = logging.getLogger("engines.learning")
 
-LOOPS = ("brief", "structure", "flow", "zerodte")
+LOOPS = ("brief", "structure", "flow", "zerodte", "watch")
 
 STORES = {
     "brief": "agent.sqlite3",
     "structure": "opportunities.db",
     "flow": "flow_learning.db",
     "zerodte": "zerodte.sqlite3",
+    "watch": "flow_learning.db",      # the flow engine's second loop shares its store
 }
 
 # The Brief's grading bands (engines/agent/grade_outcomes.py). Mirrored, not
@@ -87,8 +89,11 @@ def _query(loop: str, sql: str, data_dir: str | None) -> list:
     try:
         con = _ro(store_path(loop, data_dir))
         return con.execute(sql).fetchall() if con is not None else []
-    except sqlite3.Error:
-        log.warning("learning ledger: %s store unreadable", loop, exc_info=True)
+    except sqlite3.Error as exc:
+        # A loop that has not written its first row has no table yet: that is an
+        # empty loop, not a fault.
+        if "no such table" not in str(exc):
+            log.warning("learning ledger: %s store unreadable", loop, exc_info=True)
         return []
     finally:
         if con is not None:
@@ -267,7 +272,40 @@ def zerodte(data_dir: str | None = None) -> list:
     return rows
 
 
-LOADERS = {"brief": brief, "structure": structure, "flow": flow, "zerodte": zerodte}
+def watch(data_dir: str | None = None) -> list:
+    """Auto-watched whale alerts (engines/flow/watch.py), one row per (alert,
+    horizon). `edge` is the underlying's move in the alert's direction — up for a
+    call, down for a put — net of the average move of all watched names over the
+    same horizon, so a book that is mostly calls in a rising tape earns nothing
+    for the tape. `option_pnl` is the contract's own % change: what following the
+    alert would have returned, carried for description (decay gives it no
+    zero-information baseline, so it is not judged)."""
+    raw = _query("watch", """
+        SELECT s.run_date AS date, s.ticker AS ticker, s.option_type AS option_type,
+               s.dte AS dte, s.score AS score, s.premium AS premium,
+               s.vol_oi_ratio AS vol_oi_ratio, s.delta AS delta,
+               o.horizon AS horizon, o.raw_return AS raw_return,
+               o.option_pnl_pct AS option_pnl_pct, o.direction_correct AS direction_correct
+        FROM watch_outcomes o JOIN watch_signals s ON s.id = o.signal_id
+        ORDER BY s.run_date""", data_dir)
+    rows = [{
+        "loop": "watch", "date": r["date"], "ticker": r["ticker"], "horizon": r["horizon"],
+        "option_type": r["option_type"],
+        "direction": 1 if r["option_type"] == "call" else -1,
+        "dte": r["dte"], "score": _num(r["score"]), "premium": _num(r["premium"]),
+        "vol_oi_ratio": _num(r["vol_oi_ratio"]), "delta": _num(r["delta"]),
+        "ret": _num(r["raw_return"]), "option_pnl": _num(r["option_pnl_pct"]), "edge": None,
+        "hit": r["direction_correct"] if r["direction_correct"] in (0, 1) else None,
+    } for r in raw]
+    drift = _demean(rows, lambda r: r["horizon"])
+    for r in rows:
+        if r["ret"] is not None:
+            r["edge"] = r["direction"] * (r["ret"] - drift[r["horizon"]])
+    return rows
+
+
+LOADERS = {"brief": brief, "structure": structure, "flow": flow, "zerodte": zerodte,
+           "watch": watch}
 
 
 def observations(loop: str, data_dir: str | None = None) -> list:

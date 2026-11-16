@@ -416,7 +416,8 @@ a.tlink:hover { color:var(--blue); border-bottom-color:var(--blue); text-decorat
   padding:11px 13px; display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
 .legend-txt { font-size:0.72em; color:#8fa3c0; line-height:1.55; }
 
-.loop-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+.loop-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px;
+  margin-bottom:18px; }
 .loop-card { background:var(--surface); border:1px solid var(--border); border-radius:6px;
   padding:13px 15px; color:inherit; display:flex; flex-direction:column; gap:5px;
   transition:border-color .16s; }
@@ -498,11 +499,11 @@ table.score tbody tr:hover .ci-dot.hollow { background:#152033; box-shadow:none;
   letter-spacing:0.06em; }
 
 @media (max-width:1000px) {
-  .legend, .loop-grid { grid-template-columns:1fr 1fr; }
+  .legend { grid-template-columns:1fr 1fr; }
   .how { grid-template-columns:1fr; }
 }
 @media (max-width:640px) {
-  .legend, .loop-grid { grid-template-columns:1fr; }
+  .legend { grid-template-columns:1fr; }
 }
 
 /* degraded banner */

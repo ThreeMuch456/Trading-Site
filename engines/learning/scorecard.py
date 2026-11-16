@@ -321,7 +321,51 @@ def _zerodte(rows: list) -> dict:
     }
 
 
-_BUILDERS = {"brief": _brief, "structure": _structure, "flow": _flow, "zerodte": _zerodte}
+# ---------------------------------------------------------------------------
+# Watchlist (whale alerts)
+# ---------------------------------------------------------------------------
+
+# horizon label -> (cohort name, sessions held = dates of overlap between entries)
+_WATCH_HORIZONS = {"0d": ("to that session's close", 0), "1d": ("next session", 1),
+                   "3d": ("3 sessions on", 3), "5d": ("5 sessions on", 5)}
+
+
+def _watch(rows: list) -> dict:
+    calendar = sorted({r["date"] for r in rows})
+    direction, score = [], []
+    for h, (name, overlap) in _WATCH_HORIZONS.items():
+        sub = [r for r in rows if r["horizon"] == h and r["edge"] is not None]
+        if not sub:
+            continue
+        dates, edges = _dates(sub), [r["edge"] for r in sub]
+        direction.append((name, st.mean_effect(edges, dates, overlap=overlap, order=calendar),
+                          {**_hits(sub), "avg_option_pnl": _mean(r["option_pnl"] for r in sub)}))
+        have = [r for r in sub if r["score"] is not None]
+        thr, mask = st.median_split([r["score"] for r in have])
+        score.append((name, st.gap_effect([r["edge"] for r in have], mask, _dates(have),
+                                          overlap=overlap, order=calendar),
+                      {"threshold": thr, "n_high": sum(mask), "n_low": len(mask) - sum(mask)}))
+    return {
+        "loop": "watch", "label": "Whale alerts", "store": ledger.STORES["watch"],
+        "observation": "an auto-watched whale alert, followed from entry for up to 5 sessions",
+        "coverage": ledger.coverage(rows),
+        "families": [
+            _family("direction", "Does the underlying move the way the alert pointed?",
+                    "% move in the alert's direction, net of the average watched name",
+                    direction,
+                    "Hit rate is the share that moved the alert's way at all. The option's "
+                    "own P&L is recorded but not judged: time decay gives it no "
+                    "zero-information baseline."),
+            _family("score", "Do higher-scored alerts do better than lower-scored ones?",
+                    "% directional move, top half by alert score minus bottom half", score,
+                    "This is the first check the alert score has ever had against an "
+                    "outcome; its weights should not be tuned until a horizon is judged."),
+        ],
+    }
+
+
+_BUILDERS = {"brief": _brief, "structure": _structure, "flow": _flow, "zerodte": _zerodte,
+             "watch": _watch}
 
 
 # ---------------------------------------------------------------------------

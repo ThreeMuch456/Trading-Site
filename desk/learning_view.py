@@ -29,7 +29,8 @@ _MONTHS = ("", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 # What one observation is called, per loop (singular, plural).
 _UNIT_NAME = {"brief": ("call", "calls"), "structure": ("labeled setup", "labeled setups"),
-              "flow": ("flow lean", "flow leans"), "zerodte": ("level touch", "level touches")}
+              "flow": ("flow lean", "flow leans"), "zerodte": ("level touch", "level touches"),
+              "watch": ("alert outcome", "alert outcomes")}
 
 
 def _scorecard() -> dict | None:

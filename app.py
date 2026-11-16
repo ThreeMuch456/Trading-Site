@@ -284,6 +284,8 @@ def healthz():
             ("flow.sweep_alerts",       "flow.db",          "sweep_alerts"),
             ("flow.signals",            "flow_learning.db", "flow_signals"),
             ("flow.outcomes",           "flow_learning.db", "flow_outcomes"),
+            ("flow.watch_signals",      "flow_learning.db", "watch_signals"),
+            ("flow.watch_outcomes",     "flow_learning.db", "watch_outcomes"),
         ]
         # The desk's own journal. Its path can be overridden (DESK_DB_PATH), so take
         # it from the store; an absolute path survives the os.path.join below.

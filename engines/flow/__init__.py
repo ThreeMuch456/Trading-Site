@@ -138,6 +138,14 @@ def _safe_capture() -> None:
         log.info("flow EOD capture wrote %d signal rows", n)
     except Exception:
         log.exception("flow EOD capture failed")
+    # The watchlist alert-outcome loop shares this slot: record every watched
+    # alert before its snapshots age out. Its own guard, so neither loop's
+    # failure costs the other its day.
+    try:
+        from . import watch
+        log.info("flow EOD capture wrote %d watchlist signal rows", watch.capture())
+    except Exception:
+        log.exception("flow EOD watchlist capture failed")
 
 
 def _safe_label() -> None:
@@ -151,6 +159,11 @@ def _safe_label() -> None:
         log.info("flow EOD label wrote %d outcome rows", n)
     except Exception:
         log.exception("flow EOD label failed")
+    try:
+        from . import watch
+        log.info("flow EOD label wrote %d watchlist outcome rows", watch.label_due())
+    except Exception:
+        log.exception("flow EOD watchlist label failed")
 
 
 def _safe_tune() -> None:
