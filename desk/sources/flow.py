@@ -10,8 +10,9 @@ flow simply doesn't appear in waves. All numeric fields are formatted here so th
 templates stay dumb.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from html import escape
+from zoneinfo import ZoneInfo
 
 from . import http_get_json
 
@@ -29,14 +30,32 @@ def collect(cfg: dict, timeout: float) -> dict:
     intraday_skew = _skew_from_waves(waves, order)
     session_skew = _session_skew(alerts, order)
     eod_chips = [_eod_chip(e) for e in (eod.get("tickers") or [])]
-    label = _session_label(eod)
+    session_date = _today_et().isoformat()
+    label = _session_label(session_date)
 
-    # Full index-ETF parity with the standalone page: the ranked individual entries
-    # (the #1/#2… cards) and the raw call-vs-put volume rollup, both computed from
-    # the same /api/index-etfs alert list the skew already aggregates.
-    ranked = [_entry(a) for a in
-              sorted(alerts, key=lambda x: (x.get("score") or 0), reverse=True)][:25]
+    # Full index-ETF parity with the standalone page: every ranked entry (the
+    # #1/#2… cards — the old page shows them all, not a top 25) and the raw
+    # call-vs-put volume rollup, per expiry bucket so the 0DTE / 1DTE filters
+    # can swap it, all from the same /api/index-etfs list the skew aggregates.
+    now = datetime.now(timezone.utc)
+    ranked = [_entry(a, now) for a in
+              sorted(alerts, key=lambda x: (x.get("score") or 0), reverse=True)]
     rollup = _rollup(alerts, order)
+    rollups = {
+        "all": rollup,
+        "0dte": _rollup([a for a in alerts if a.get("bucket") == "0dte"], order),
+        "1dte": _rollup([a for a in alerts if a.get("bucket") == "1dte"], order),
+    }
+    new_count = sum(1 for a in alerts if a.get("is_new"))
+
+    # How many far-OTM lottery tickets the page holds back (the old page's
+    # "Far OTM · N hidden"). Only a count — they stay out of every read here,
+    # exactly as on the old page by default. Guarded: a miss just omits it.
+    try:
+        wide = http_get_json(base + "/api/index-etfs?far_otm=1", tok, hdr, timeout)
+        far_otm_hidden = sum(1 for a in (wide or []) if a.get("far_otm"))
+    except Exception:
+        far_otm_hidden = None
 
     # EOD predictiveness learning loop (flow engine Phase A–D): how well the day's
     # directional flow called the realized ETF move, plus the learned metric +
@@ -48,13 +67,19 @@ def collect(cfg: dict, timeout: float) -> dict:
 
     surge_count = len(wave_banners)
     fresh_premium = sum(w.get("premium") or 0 for w in waves if w.get("is_surge"))
-    call_leans = sum(1 for e in (eod.get("tickers") or []) if e.get("direction") == "call")
+    # A ticker only "leans" when its EOD flow is a real one-sided wave — the old
+    # page shows no lean badge otherwise (e.g. SPY at 48.6% calls).
+    call_leans = sum(1 for e in (eod.get("tickers") or [])
+                     if e.get("is_wave") and e.get("direction") == "call")
     eod_total = len(eod.get("tickers") or [])
 
     return {
-        "flow": {"session_label": label, "waves": wave_banners,
-                 "session_skew": session_skew, "rollup": rollup,
-                 "ranked": ranked, "eod": eod_chips},
+        "flow": {"session_label": label, "session_date": session_date,
+                 "waves": wave_banners, "window_minutes": _window_minutes(waves),
+                 "session_skew": session_skew, "rollup": rollup, "rollups": rollups,
+                 "ranked": ranked, "new_count": new_count,
+                 "far_otm_hidden": far_otm_hidden,
+                 "eod": eod_chips, "eod_meta": _eod_meta(eod, session_date)},
         "intraday_skew": intraday_skew,
         "predict": predict,
         "card": {"surge_count": surge_count, "fresh_premium": _usd(fresh_premium),
@@ -129,19 +154,70 @@ def _is_call(ot) -> bool:
     return str(ot).lower() in ("call", "c")
 
 
-def _hhmm(iso) -> str:
+_ET = ZoneInfo("America/New_York")
+
+
+def _today_et():
+    """The page's session date: always today on the ET clock (the flow engine's
+    _session_window), never rolled back — unlike the EOD window."""
+    return datetime.now(_ET).date()
+
+
+def _parse(iso):
+    """An API timestamp as an aware datetime. The flow store keeps them naive
+    UTC (SQLAlchemy drops the zone), so a naive value is UTC — reading it as
+    local time put every card five hours off."""
     if not iso or not isinstance(iso, str):
-        return ""
+        return None
     try:
-        return datetime.fromisoformat(iso).strftime("%H:%M")
+        dt = datetime.fromisoformat(iso)
     except ValueError:
+        return None
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
+def _hhmm(iso, fmt: str = "%H:%M") -> str:
+    dt = _parse(iso)
+    return dt.astimezone(_ET).strftime(fmt) if dt else ""
+
+
+def _ago(iso, now: datetime) -> str:
+    dt = _parse(iso)
+    if not dt:
         return ""
+    mins = max(0, int((now - dt).total_seconds() // 60))
+    return f"{mins}m" if mins < 60 else f"{mins // 60}h"
 
 
-def _entry(a: dict) -> dict:
-    """One ranked index-ETF flow entry → a card row (mirrors the standalone's
-    _sweep_card). `ask`/`Px @ flag` is not in the /api/index-etfs contract, so it
-    is omitted; every other field maps straight across."""
+# Flag label -> the style class the old page colours it with. Used only when the
+# API does not send `flag_classes` (older payloads / fixtures).
+_FLAG_CLASS = (("WHALE", "whale"), ("BIG", "big"), ("VOL/OI", "unusual"),
+               ("BURST", "burst"), ("@ASK", "buy"), ("@BID", "sell"),
+               ("NO OI", "newoi"), ("VOL≫OI", "newoi"), ("FAR OTM", "farotm"),
+               ("NEW", "new"))
+
+
+def _flag_class(label: str) -> str:
+    up = label.upper()
+    return next((cls for key, cls in _FLAG_CLASS if key in up), "")
+
+
+def _flags(a: dict) -> list:
+    labels = [str(f) for f in (a.get("flags") or [])]
+    classes = a.get("flag_classes")
+    if not (isinstance(classes, list) and len(classes) == len(labels)):
+        classes = [_flag_class(f) for f in labels]
+    out = [{"cls": c, "label": escape(f)} for c, f in zip(classes, labels)]
+    if a.get("is_new") and not any(f["cls"] == "new" for f in out):
+        out.append({"cls": "new", "label": "NEW"})
+    return out
+
+
+def _entry(a: dict, now: datetime | None = None) -> dict:
+    """One ranked index-ETF flow entry → a card row, mirroring the standalone's
+    _sweep_card: flags in their colours, the wave / EOD tags that tie a card to
+    the banners above it, Px @ flag, and times on the ET clock."""
+    now = now or datetime.now(timezone.utc)
     call = _is_call(a.get("option_type"))
     try:
         score = max(0, min(100, int(round(float(a.get("score") or 0)))))
@@ -150,14 +226,23 @@ def _entry(a: dict) -> dict:
     voi, iv, dl = a.get("vol_oi_ratio"), a.get("implied_volatility"), a.get("delta")
     und = a.get("underlying_price")
     hits = a.get("hits") or 1
+    ask = a.get("ask")
+    surge, eod = a.get("surge"), a.get("eod")
     return {
         "sym": a.get("ticker", "—"),
+        "bucket": a.get("bucket") or "",
+        "px": f"${ask:.2f}" if isinstance(ask, (int, float)) and ask > 0 else None,
+        "px_age": _ago(a.get("detected_at"), now),
+        "surge": "call" if surge == "call" else ("put" if surge == "put" else None),
+        "eod": "call" if eod == "call" else ("put" if eod == "put" else None),
         "cp": "C" if call else "P", "cp_class": "call" if call else "put",
         "strike": _g(a.get("strike")), "expiry": escape(str(a.get("expiry", "—"))),
-        "premium": _usd(a.get("estimated_premium")),
+        # Full dollars on the card, as the scanner's page prints it.
+        "premium": (f"${a['estimated_premium']:,.0f}"
+                    if isinstance(a.get("estimated_premium"), (int, float)) else "—"),
         "score": score,
         "score_color": "var(--green)" if score >= 70 else ("var(--amber)" if score >= 45 else "var(--blue)"),
-        "flags": [escape(str(f)) for f in (a.get("flags") or [])],
+        "flags": _flags(a),
         "is_new": bool(a.get("is_new")),
         "voi": f"{voi:.1f}×" if isinstance(voi, (int, float)) else "—",
         "vol": _n(a.get("volume")),
@@ -173,14 +258,20 @@ def _entry(a: dict) -> dict:
 
 def _rollup(alerts: list, order: list) -> list:
     """Per-ticker raw call vs put volume across the notable entries this session,
-    plus the fresh (15m) call/put delta — the standalone's 'Ticker Rollup'."""
+    plus the fresh (15m) call/put split — the standalone's 'Ticker Rollup'.
+
+    The fresh line counts only entries flagged inside the window (`is_new`), as
+    the old page does. Summing every entry's last-scan delta credited contracts
+    flagged hours earlier to the last 15 minutes. Tickers with no entries are
+    left out rather than shown as an empty 50/50 card."""
     agg: dict = {}
     for a in alerts:
         t = a.get("ticker")
         if t is None:
             continue
         d = agg.setdefault(t, {"c": 0, "p": 0, "cd": 0, "pd": 0, "n": 0})
-        vol, dl = a.get("volume") or 0, a.get("volume_delta") or 0
+        vol = a.get("volume") or 0
+        dl = (a.get("volume_delta") or 0) if a.get("is_new") else 0
         if _is_call(a.get("option_type")):
             d["c"] += vol
             d["cd"] += dl
@@ -189,18 +280,18 @@ def _rollup(alerts: list, order: list) -> list:
             d["pd"] += dl
         d["n"] += 1
     out = []
-    for sym in order:
+    for sym in list(order) + sorted(set(agg) - set(order)):
         d = agg.get(sym)
         if not d:
-            out.append({"sym": sym, "call_vol": "0", "put_vol": "0",
-                        "call_pct": 50, "contracts": 0, "fresh": None})
             continue
         tot = d["c"] + d["p"]
-        cp = int(round(d["c"] / tot * 100)) if tot else 50
+        share = d["c"] / tot * 100 if tot else 50.0
         out.append({
             "sym": sym, "call_vol": _n(d["c"]), "put_vol": _n(d["p"]),
-            "call_pct": cp, "contracts": d["n"],
+            "call_pct": int(round(share)), "call_pct_txt": f"{share:.1f}%" if tot else "—",
+            "contracts": d["n"],
             "fresh": f"+{_n(d['cd'])}C / +{_n(d['pd'])}P" if (d["cd"] + d["pd"]) else None,
+            "fresh_c": f"+{_n(d['cd'])}C", "fresh_p": f"+{_n(d['pd'])}P",
         })
     return out
 
@@ -265,19 +356,58 @@ def _session_skew(alerts: list, order: list) -> list:
 
 
 def _eod_chip(e: dict) -> dict:
+    """One ticker's late-day positioning, as the old page draws it: call and put
+    contracts, % calls, prints, premium and the leading contract. The lean badge
+    is only set when the flow is a real one-sided wave (`is_wave`) — otherwise
+    the ticker is shown without a lean, never with the larger side by default."""
+    # From the raw volumes when present (the API's call_share is pre-rounded,
+    # which can shift the displayed decimal off the scanner page's own).
+    cv, pv = e.get("call_volume"), e.get("put_volume")
     call_share = e.get("call_share")
-    call_pct = int(round(call_share * 100)) if isinstance(call_share, (int, float)) else 50
+    if isinstance(cv, (int, float)) and isinstance(pv, (int, float)) and cv + pv > 0:
+        share = cv / (cv + pv) * 100
+    else:
+        share = call_share * 100 if isinstance(call_share, (int, float)) else 50.0
     side = e.get("direction", "call")
-    dom = call_pct if side == "call" else 100 - call_pct
-    expiries = e.get("expiries") or []
-    exp = escape(str(expiries[0])) if expiries else "—"
-    detail = f"{dom}% {side}s · {_usd(e.get('premium'))} · exp {exp}"
-    return {"sym": e.get("ticker", "—"), "lean": side, "call_pct": call_pct, "detail": detail}
+    top = e.get("top_contract") or {}
+    led = ""
+    if top:
+        cp = "C" if _is_call(top.get("option_type")) else "P"
+        led = f"led by ${_g(top.get('strike'))}{cp} exp {escape(str(top.get('expiry', '')))}"
+    prints = e.get("contracts") or 0
+    detail = (f"{share:.1f}% calls · {prints} print{'s' if prints != 1 else ''} · "
+              f"{_usd(e.get('premium'))}")
+    is_wave = bool(e.get("is_wave"))
+    return {"sym": e.get("ticker", "—"),
+            "lean": side if is_wave else None, "is_wave": is_wave,
+            "call_vol": _n(e.get("call_volume")), "put_vol": _n(e.get("put_volume")),
+            "call_pct": int(round(share)), "detail": detail, "led": led}
 
 
-def _session_label(eod: dict) -> str:
+def _eod_meta(eod: dict, session_date: str) -> dict:
+    """The EOD section's header: which window it covers and whether it is the
+    prior session's read (mornings) or the one about to carry into tomorrow."""
     d = eod.get("session_date")
-    return f"0DTE / 1DTE · session of {escape(str(d))}" if d else "0DTE / 1DTE"
+    start = _parse(eod.get("window_start"))
+    start_txt = start.astimezone(_ET).strftime("%I:%M %p").lstrip("0") if start else "3:00 PM"
+    prior = bool(d) and d != session_date
+    return {"session": escape(str(d or "")), "start": start_txt, "prior": prior,
+            "when": "prior session · read on today" if prior else "next session"}
+
+
+def _window_minutes(waves: list) -> int:
+    for w in waves or []:
+        if isinstance(w.get("window_minutes"), int):
+            return w["window_minutes"]
+    return 15
+
+
+def _session_label(session_date: str) -> str:
+    try:
+        d = datetime.fromisoformat(session_date)
+        return f"0DTE / 1DTE · session of {d.strftime('%a %b')} {d.day}"
+    except (TypeError, ValueError):
+        return "0DTE / 1DTE"
 
 
 def fetch_sweeps(cfg: dict, timeout: float) -> list:

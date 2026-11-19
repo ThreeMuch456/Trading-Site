@@ -1,16 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Flow — {{ site_name }}{% endblock %}
 {% block content %}
+{% set F = s.flow %}
+{% set mins = F.window_minutes or 15 %}
+{% set rollups = F.rollups or {'all': F.rollup} %}
 
 <div class="page-head">
   <div class="ph-l">
     <h2><span class="n">03</span>Short-Dated Index Flow</h2>
-    <div class="sub">Notable 0DTE / 1DTE flow on SPY · QQQ · IWM — fresh one-sided waves in the last 15 minutes,
-      and the late-day positioning that carries into the next session.</div>
+    <div class="sub">Notable 0DTE / 1DTE flow on SPY · QQQ · IWM, ranked by significance — fresh one-sided waves in the
+      last {{ mins }} minutes, and the late-day positioning that carries into the next session.</div>
   </div>
   <div class="ph-r">
-    <span class="ph-meta">{{ s.flow.session_label }}</span>
-    <a href="#" class="src">Flow Scanner ↗</a>
+    <span class="ph-meta">{{ F.session_label }}</span>
   </div>
 </div>
 
@@ -19,56 +21,73 @@
   <a href="{{ url_for('flow_all') }}">All Tickers</a>
 </div>
 
-<div class="section">
-  <div class="section-header"><span class="sh-title">Fresh Flow Waves · last 15m</span>
-    <span class="sh-meta">one-sided bursts — the headline read</span></div>
-  <div class="section-body">
-    {% for w in s.flow.waves %}
-    <div class="surge {{ w.side }}">
-      <span class="st">⚡ {{ w.sym }} {{ w.side|capitalize }} Wave</span>
-      <span class="sd">{{ w.call_n }} calls vs {{ w.put_n }} puts — {{ w.skew_pct }}% {{ w.side }}s</span>
-      <span class="skew" style="max-width:180px;"><i class="c" style="width:{{ w.call_pct }}%"></i><i class="p" style="width:{{ 100 - w.call_pct }}%"></i></span>
-      <span class="sd">{{ w.lead }}</span>
-      <span class="sm">{{ w.meta }}</span>
-    </div>
-    {% endfor %}
-    <div class="note">
-      A wave is a one-sided burst of fresh volume (new prints, not open interest) clearing the significance
-      threshold in the window. Direction is the dominant side; premium is the notional of just the contracts
-      that printed in these 15 minutes.
-    </div>
-  </div>
+<div class="filters" id="flow-filters">
+  <button type="button" class="chip dte-btn" data-dte="all">All</button>
+  <button type="button" class="chip dte-btn" data-dte="0dte">0DTE</button>
+  <button type="button" class="chip dte-btn" data-dte="1dte">1DTE</button>
+  <button type="button" class="chip" id="fresh-toggle"
+          title="Show only entries flagged in the last {{ mins }} minutes (combines with the expiry filter)">⚡ Fresh</button>
+  {% if F.far_otm_hidden %}<span class="filters-note" title="Far-out-of-the-money lottery tickets (|delta| under 0.05) are left out of the cards, rollup, waves and EOD read, as on the scanner's own page.">Far OTM · {{ F.far_otm_hidden }} hidden</span>{% endif %}
 </div>
 
-<div class="section">
+{% for w in F.waves %}
+<div class="surge {{ w.side }}">
+  <span class="st">⚡ {{ w.sym }} {{ w.side|upper }} WAVE</span>
+  <span class="sd">{{ w.call_n }} calls vs {{ w.put_n }} puts — {{ w.skew_pct }}% {{ w.side }}s</span>
+  <span class="skew" style="max-width:180px;"><i class="c" style="width:{{ w.call_pct }}%"></i><i class="p" style="width:{{ 100 - w.call_pct }}%"></i></span>
+  <span class="sd">{{ w.lead }}</span>
+  <span class="sm">{{ w.meta }}</span>
+</div>
+{% endfor %}
+
+{% if F.new_count %}
+<div class="new-count">● {{ F.new_count }} new entr{{ 'y' if F.new_count == 1 else 'ies' }} in the last {{ mins }} min</div>
+{% endif %}
+
+{% if F.eod %}
+{% set em = F.eod_meta or {} %}
+<div class="section" id="eod-section">
   <div class="section-header">
-    <span class="sh-title"><span class="badge eod" style="margin-right:8px;">EOD</span> Late-Day Positioning</span>
-    <span class="sh-meta">read on tomorrow · contracts outliving the session</span>
+    <span class="sh-title"><span class="badge eod" style="margin-right:8px;">EOD</span>
+      Positioning{% if em.session %} — flow since {{ em.start }} ET on {{ em.session }} into later expiries{% endif %}</span>
+    <span class="sh-meta">{{ em.when or 'next session' }}</span>
   </div>
   <div class="section-body">
     <div class="eod-grid">
-      {% for e in s.flow.eod %}
-      <div class="eod-chip lean-{{ e.lean }}">
-        <div class="et"><a class="tlink" href="{{ url_for('flow_ticker', sym=e.sym) }}">{{ e.sym }}</a> <span class="badge {{ e.lean }}">{{ e.lean|capitalize }} lean</span></div>
+      {% for e in F.eod %}
+      <div class="eod-chip {{ 'lean-' ~ e.lean if e.lean }}">
+        <div class="et"><a class="tlink" href="{{ url_for('flow_ticker', sym=e.sym) }}">{{ e.sym }}</a>
+          {% if e.lean %}<span class="badge eod">◗ {{ e.lean|upper }} LEAN</span>{% endif %}</div>
+        {% if e.call_vol %}
+        <div style="display:flex; gap:14px; margin:6px 0 4px;">
+          <span class="num" style="color:var(--green)">{{ e.call_vol }} C</span>
+          <span class="num" style="color:var(--red)">{{ e.put_vol }} P</span>
+        </div>
+        {% endif %}
         <div class="skew"><i class="c" style="width:{{ e.call_pct }}%"></i><i class="p" style="width:{{ 100 - e.call_pct }}%"></i></div>
         <div class="ed">{{ e.detail }}</div>
+        {% if e.led %}<div class="ed">{{ e.led }}</div>{% endif %}
       </div>
       {% endfor %}
     </div>
     <div class="note">
-      End-of-day positioning holds the session's late flow into contracts that expire <b>after</b> today —
-      the read on the session about to start. SPY and QQQ close call-leaning into Friday's expiry; IWM stays
-      put-heavy, the same divergence seen in intraday. These strike buckets become tomorrow's magnets.
+      Late flow into contracts that expire <b>after</b> the session it was bought in — 0DTE is a bet on today, not on
+      tomorrow, so it is left out. A ticker shows a <b>lean</b> only when that flow is one-sided enough to count as a
+      wave; otherwise it is shown without one.{% if em.prior %} This is the prior session's read, on the session now
+      under way.{% endif %}
     </div>
   </div>
 </div>
+{% endif %}
 
 <div class="section">
-  <div class="section-header"><span class="sh-title">Ticker Rollup · Call vs Put Volume</span>
+  <div class="section-header"><span class="sh-title">Ticker Rollup · Call vs Put Volume<span id="rollup-scope"></span></span>
     <span class="sh-meta">this session · across the notable entries</span></div>
   <div class="section-body">
-    <div class="eod-grid">
-      {% for r in s.flow.rollup %}
+    {% for bucket in ['all', '0dte', '1dte'] %}
+    {% if bucket in rollups %}
+    <div class="eod-grid" data-rollup="{{ bucket }}" {% if bucket != 'all' %}style="display:none"{% endif %}>
+      {% for r in rollups[bucket] %}
       <div class="eod-chip">
         <div class="et"><a class="tlink" href="{{ url_for('flow_ticker', sym=r.sym) }}">{{ r.sym }}</a></div>
         <div style="display:flex; gap:14px; margin:6px 0 4px;">
@@ -76,32 +95,40 @@
           <span class="num" style="color:var(--red)">{{ r.put_vol }} P</span>
         </div>
         <div class="skew"><i class="c" style="width:{{ r.call_pct }}%"></i><i class="p" style="width:{{ 100 - r.call_pct }}%"></i></div>
-        <div class="ed">{{ r.call_pct }}% calls · {{ r.contracts }} contract{{ 's' if r.contracts != 1 }}{% if r.fresh %}
-          · <span style="color:var(--muted)">15m {{ r.fresh }}</span>{% endif %}</div>
+        <div class="ed">{{ r.call_pct_txt or (r.call_pct ~ '%') }} calls · {{ r.contracts }} contract{{ 's' if r.contracts != 1 }}</div>
+        {% if r.fresh %}<div class="ed"><span style="color:var(--muted)">{{ mins }}m</span>
+          {% if r.fresh_c %}<span style="color:var(--green)">{{ r.fresh_c }}</span> / <span style="color:var(--red)">{{ r.fresh_p }}</span>{% else %}{{ r.fresh }}{% endif %}</div>{% endif %}
       </div>
+      {% else %}
+      <div class="ed" style="color:var(--muted)">No {{ bucket|upper if bucket != 'all' else '' }} flow this session.</div>
       {% endfor %}
     </div>
+    {% endif %}
+    {% endfor %}
     <div class="note">
-      Cumulative day volume across the notable index-ETF entries this session; the 15m line is fresh flow only.
+      Cumulative day volume across the notable index-ETF entries this session; the {{ mins }}m line is flow from
+      entries flagged in the last {{ mins }} minutes only. Follows the expiry filter above.
     </div>
   </div>
 </div>
 
 <div class="section">
   <div class="section-header"><span class="sh-title">Notable Index-ETF Flow</span>
-    <span class="sh-meta">{{ s.flow.ranked|length }} entr{{ 'y' if s.flow.ranked|length == 1 else 'ies' }} · ranked by significance</span></div>
+    <span class="sh-meta">{{ F.ranked|length }} entr{{ 'y' if F.ranked|length == 1 else 'ies' }} · ranked by significance</span></div>
   <div class="section-body">
-    {% for it in s.flow.ranked %}
-    <div class="sweep-card" style="border:1px solid var(--surface2); border-radius:8px; padding:12px 14px; margin-bottom:10px;">
+    {% for it in F.ranked %}
+    <div class="sweep-card" data-dte-bucket="{{ it.bucket }}" data-fresh="{{ 1 if it.is_new else 0 }}"
+         style="border:1px solid var(--surface2); border-radius:8px; padding:12px 14px; margin-bottom:10px;">
       <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span class="num" style="color:var(--muted); font-weight:600;">#{{ loop.index }}</span>
           <a class="tlink" href="{{ url_for('flow_ticker', sym=it.sym) }}" style="font-weight:700; font-size:1.15em; letter-spacing:.04em;">{{ it.sym }}</a>
-          <span class="badge {{ it.cp_class }}">{{ it.cp }}</span>
+          <span class="badge {{ it.cp_class }}">{{ 'CALL' if it.cp == 'C' else 'PUT' }}</span>
           <span class="num" style="color:var(--text);">${{ it.strike }}</span>
           <span style="color:var(--muted); font-size:.85em;">exp {{ it.expiry }}</span>
-          {% for f in it.flags %}<span class="badge" style="background:var(--surface2); color:var(--muted); margin-right:2px;">{{ f }}</span>{% endfor %}
-          {% if it.is_new %}<span class="badge new">New</span>{% endif %}
+          {% for f in it.flags %}{% if f is mapping %}<span class="badge {{ f.cls }}">{{ f.label }}</span>{% else %}<span class="badge" style="background:var(--surface2); color:var(--muted);">{{ f }}</span>{% endif %}{% endfor %}
+          {% if it.surge %}<span class="badge wave">⚡ {{ it.surge|upper }} WAVE</span>{% endif %}
+          {% if it.eod %}<span class="badge eod">◗ EOD {{ it.eod|upper }}</span>{% endif %}
         </div>
         <div style="text-align:right;">
           <div class="num" style="font-size:1.25em; font-weight:700; color:var(--text);">{{ it.premium }}</div>
@@ -118,6 +145,7 @@
         <span>Volume <span class="num" style="color:var(--text);">{{ it.vol }}</span></span>
         {% if it.fresh %}<span>Fresh <span class="num" style="color:var(--text);">{{ it.fresh }}</span></span>{% endif %}
         <span>OI <span class="num" style="color:var(--text);">{{ it.oi }}</span></span>
+        {% if it.px %}<span>Px @ flag <span class="num" style="color:var(--text);">{{ it.px }}</span>{% if it.px_age %} <span style="font-size:.85em;">{{ it.px_age }} ago</span>{% endif %}</span>{% endif %}
         <span>IV <span class="num" style="color:var(--text);">{{ it.iv }}</span></span>
         <span>Delta <span class="num" style="color:var(--text);">{{ it.delta }}</span></span>
         <span>Underlying <span class="num" style="color:var(--text);">{{ it.underlying }}</span></span>
@@ -126,8 +154,58 @@
       </div>
     </div>
     {% endfor %}
-    {% if not s.flow.ranked %}<div class="note" style="color:var(--muted);">No notable index-ETF flow this session yet — the scanner populates this during market hours (≈15 min after the open on delayed data).</div>{% endif %}
+    <div class="note" id="filter-empty" style="display:none; color:var(--muted);">No entries match this filter.</div>
+    {% if not F.ranked %}<div class="note" style="color:var(--muted);">No notable index-ETF flow this session yet — the scanner populates this during market hours (≈15 min after the open on delayed data).</div>{% endif %}
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Expiry + fresh-only filters, client-side and AND-ed, remembered across the
+  // page's auto-refresh (same behaviour as the scanner's own Index ETFs page).
+  (function () {
+    var DTE_KEY = 'desk-etf-dte', FRESH_KEY = 'desk-etf-fresh';
+    var btns = Array.prototype.slice.call(document.querySelectorAll('.dte-btn'));
+    var freshBtn = document.getElementById('fresh-toggle');
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.sweep-card[data-dte-bucket]'));
+    var grids = Array.prototype.slice.call(document.querySelectorAll('[data-rollup]'));
+    var none = document.getElementById('filter-empty');
+    var scope = document.getElementById('rollup-scope');
+    var eod = document.getElementById('eod-section');
+    var dte = 'all', freshOnly = false;
+    if (!freshBtn) return;
+
+    function apply() {
+      var shown = 0;
+      cards.forEach(function (c) {
+        var ok = (dte === 'all' || c.dataset.dteBucket === dte) && (!freshOnly || c.dataset.fresh === '1');
+        c.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      });
+      btns.forEach(function (b) { b.classList.toggle('active', b.dataset.dte === dte); });
+      freshBtn.classList.toggle('active', freshOnly);
+      if (none) none.style.display = (cards.length && !shown) ? '' : 'none';
+      grids.forEach(function (g) { g.style.display = g.dataset.rollup === dte ? '' : 'none'; });
+      if (scope) scope.textContent = dte === 'all' ? '' : ' · ' + dte.toUpperCase();
+      // EOD positioning excludes contracts expiring with the session: nothing to say on 0DTE.
+      if (eod) eod.style.display = dte === '0dte' ? 'none' : '';
+    }
+    function save(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () { dte = b.dataset.dte; save(DTE_KEY, dte); apply(); });
+    });
+    freshBtn.addEventListener('click', function () {
+      freshOnly = !freshOnly; save(FRESH_KEY, freshOnly ? '1' : '0'); apply();
+    });
+    try {
+      var d = sessionStorage.getItem(DTE_KEY);
+      if (btns.some(function (b) { return b.dataset.dte === d; })) dte = d;
+      freshOnly = sessionStorage.getItem(FRESH_KEY) === '1';
+    } catch (e) {}
+    apply();
+  })();
+</script>
 {% endblock %}

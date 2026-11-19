@@ -1183,6 +1183,11 @@ def create_app():
             "detected_at":       i["alert"].detected_at.isoformat(),
             "score":             i["score"],
             "flags":             [label for _, label in i["flags"]],
+            # Additive (desk parity with the page's cards): the style class of
+            # each flag, index-aligned with `flags`, and the contract price at
+            # flag time — the page's "Px @ flag".
+            "flag_classes":      [cls for cls, _ in i["flags"]],
+            "ask":               i["alert"].ask,
             "dte":               i["dte"],
             "tdte":              i["tdte"],
             "bucket":            i["bucket"],

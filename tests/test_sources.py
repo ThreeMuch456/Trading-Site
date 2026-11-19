@@ -159,9 +159,15 @@ def test_flow_maps_waves_eod_and_skew():
         ],
     }
 
+    far = [dict(a) for a in fixtures["/api/index-etfs"]] + [
+        {"ticker": "SPY", "option_type": "call", "volume": 9000, "far_otm": True},
+        {"ticker": "QQQ", "option_type": "put", "volume": 4000, "far_otm": True}]
+
     def dispatch(url, *a, **k):
         if url.endswith("/api/flow-learning"):
             return learning
+        if url.endswith("/api/index-etfs?far_otm=1"):
+            return far
         for path in ("/api/index-etfs/waves", "/api/index-etfs/eod", "/api/index-etfs"):
             if url.endswith(path):
                 return fixtures[path]
@@ -180,24 +186,35 @@ def test_flow_maps_waves_eod_and_skew():
     assert skews["IWM"]["label"].endswith("puts")
 
     eod = {d["sym"]: d for d in c["flow"]["eod"]}
-    assert eod["SPY"]["lean"] == "call" and eod["IWM"]["lean"] == "put"
-    assert "$4.1M" in eod["SPY"]["detail"]
+    # A lean is claimed only for a real one-sided wave; IWM's EOD flow is not one.
+    assert eod["SPY"]["lean"] == "call" and eod["IWM"]["lean"] is None
+    assert "$4.1M" in eod["SPY"]["detail"] and "58.0% calls" in eod["SPY"]["detail"]
+    assert eod["SPY"]["call_vol"] == "42,000" and eod["SPY"]["led"] == "led by $684C exp 2026-11-13"
+    meta = c["flow"]["eod_meta"]
+    assert meta["start"] == "3:30 PM" and meta["session"] == "2026-11-12"
+    assert meta["prior"] is True and meta["when"] == "prior session · read on today"
+    assert c["card"]["eod_lean"] == "Calls 2/3"         # SPY + QQQ are call waves; IWM is no lean
 
-    # Ranked index-ETF entries (standalone-parity cards), ordered by score.
+    # Ranked index-ETF entries (standalone-parity cards), ordered by score — all of
+    # them, as the old page shows, plus the far-OTM count it holds back.
     ranked = c["flow"]["ranked"]
     assert len(ranked) == 6 and ranked[0]["sym"] == "QQQ" and ranked[0]["cp"] == "C"
+    assert c["flow"]["new_count"] == 3 and c["flow"]["far_otm_hidden"] == 2
     top = ranked[0]
-    assert top["score"] == 88 and top["strike"] == "604" and top["premium"] == "$1.2M"
+    assert top["score"] == 88 and top["strike"] == "604" and top["premium"] == "$1,200,000"
     assert top["voi"] == "9.8×" and top["iv"] == "16%" and top["delta"] == "+0.41"
     assert top["underlying"] == "$601.40" and top["fresh"] == "+1,500"
     assert top["reflagged"] == "3× since 11:41 ET" and top["is_new"] is True
-    assert "WHALE" in top["flags"] and top["score_color"] == "var(--green)"
+    flags = {f["label"]: f["cls"] for f in top["flags"]}
+    assert flags["WHALE"] == "whale" and flags["NEW"] == "new" and top["score_color"] == "var(--green)"
 
     # Raw call vs put volume rollup (replaces the skew-only summary on the page).
     roll = {d["sym"]: d for d in c["flow"]["rollup"]}
     assert roll["SPY"]["call_vol"] == "5,700" and roll["SPY"]["put_vol"] == "4,300"
     assert roll["SPY"]["call_pct"] == 57 and roll["SPY"]["contracts"] == 2
     assert roll["SPY"]["fresh"] == "+900C / +0P" and roll["QQQ"]["call_pct"] == 68
+    assert roll["SPY"]["call_pct_txt"] == "57.0%"
+    assert set(c["flow"]["rollups"]) == {"all", "0dte", "1dte"}
 
     # EOD predictiveness card (the learning loop): mapped + the learned metric shown.
     pred = c["predict"]

@@ -120,6 +120,27 @@ a:hover { text-decoration:underline; }
 .badge.new { background:var(--green); color:#0b0f1a; }
 .badge.live { background:var(--green-dim); color:var(--green); }
 .badge.watch { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+/* Flow-scanner flag badges — the scanner's own colours, so a card reads the same on both pages */
+.badge.whale { background:var(--amber-dim); color:var(--amber); }
+.badge.big { background:var(--green-dim); color:var(--green); }
+.badge.unusual { background:var(--blue-dim); color:var(--blue); }
+.badge.burst { background:#3a1420; color:#ff8fa3; }
+.badge.buy { background:var(--green-dim); color:var(--green); }
+.badge.sell { background:var(--red-dim); color:var(--red); }
+.badge.newoi { background:#2a1d3a; color:var(--purple); }
+.badge.farotm { background:transparent; color:var(--muted); border:1px dashed var(--muted); }
+
+/* Flow page filters */
+.filters { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:-6px 0 16px; }
+.chip { font-family:var(--font); font-size:0.7em; font-weight:600; letter-spacing:0.08em;
+  text-transform:uppercase; padding:6px 13px; border-radius:5px; border:1px solid var(--border);
+  background:transparent; color:var(--muted); cursor:pointer; }
+.chip:hover { color:var(--blue); border-color:var(--blue); }
+.chip.active { background:var(--surface2); color:var(--text); border-color:var(--blue); }
+.filters-note { font-size:0.68em; color:var(--muted); letter-spacing:0.06em; text-transform:uppercase;
+  border:1px dashed var(--border); border-radius:5px; padding:5px 11px; }
+.new-count { font-size:0.74em; color:var(--green); letter-spacing:0.08em; text-transform:uppercase;
+  font-weight:600; margin:2px 0 14px; }
 
 /* Key-levels ticker cards */
 .lvl-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
